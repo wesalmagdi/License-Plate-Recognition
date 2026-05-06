@@ -40,3 +40,8 @@ Predicted License Plate Text
    ↓
    
 Store Result in SQLite Database
+
+
+Dataset Link:
+https://drive.google.com/drive/folders/1XShMydIi2WidM-2WR4bbngt-wrv7DuqZ?usp=drive_link
+
