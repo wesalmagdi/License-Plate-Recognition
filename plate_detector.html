@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PlateSnap — Adaptive License Plate Detector</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f5f2ed;
+  --surface: #ffffff;
+  --surface2: #f9f7f4;
+  --border: #e4dfd7;
+  --border2: #d4cfc7;
+  --text: #1c1917;
+  --muted: #7c7570;
+  --accent: #d4500a;
+  --accent-bg: #fef0e9;
+  --accent2: #1d6fb8;
+  --accent2-bg: #e8f1fb;
+  --green: #1a8a4a;
+  --green-bg: #e5f7ed;
+  --amber: #b45309;
+  --amber-bg: #fef3cd;
+  --shadow: 0 1px 8px rgba(0,0,0,0.08);
+  --shadow-lg: 0 4px 24px rgba(0,0,0,0.13);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+/* ── HEADER ─────────────────────────────────────────────── */
+header {
+  background: var(--text);
+  padding: 0.85rem 1.75rem;
+  display: flex; align-items: center; gap: 12px;
+}
+.logo {
+  font-family: 'Syne', sans-serif;
+  font-weight: 800; font-size: 1.35rem;
+  color: #fff; letter-spacing: -0.5px;
+}
+.logo span { color: #f97316; }
+.tag {
+  font-size: 10px; font-weight: 700;
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.7);
+  padding: 3px 9px; border-radius: 20px;
+  letter-spacing: 0.8px; text-transform: uppercase;
+}
+.header-right {
+  margin-left: auto;
+  font-size: 12px; color: rgba(255,255,255,0.35);
+}
+
+/* ── LAYOUT ─────────────────────────────────────────────── */
+.page { max-width: 1080px; margin: 0 auto; padding: 2rem 1.5rem 5rem; }
+
+.hero { text-align: center; margin-bottom: 2rem; }
+.hero h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 800; letter-spacing: -1.5px; line-height: 1.05;
+  margin-bottom: 0.6rem;
+}
+.hero h1 em {
+  font-style: normal; color: var(--accent);
+}
+.hero p { color: var(--muted); font-size: 0.95rem; max-width: 440px; margin: 0 auto; line-height: 1.65; }
+
+/* ── PIPELINE TRACK ─────────────────────────────────────── */
+.pipeline {
+  display: flex; align-items: center; justify-content: center;
+  gap: 0; margin: 1.5rem 0 2rem; flex-wrap: wrap;
+}
+.pipe-step {
+  display: flex; align-items: center; gap: 7px;
+  padding: 7px 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 12px; font-weight: 500; color: var(--muted);
+  transition: all 0.25s;
+}
+.pipe-step:first-child  { border-radius: 20px 0 0 20px; }
+.pipe-step:last-child   { border-radius: 0 20px 20px 0; }
+.pipe-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.4; }
+.pipe-sep  { color: var(--border2); font-size: 14px; padding: 0 2px; }
+.pipe-step.active { background: var(--text); color: #fff; border-color: var(--text); }
+.pipe-step.active .pipe-dot { opacity: 1; }
+.pipe-step.done { background: var(--green-bg); color: var(--green); border-color: #a7dfc0; }
+
+/* ── DROP ZONE ──────────────────────────────────────────── */
+.drop-zone {
+  border: 2px dashed var(--border2);
+  border-radius: 18px; background: var(--surface);
+  padding: 2.5rem 1.5rem; text-align: center;
+  cursor: pointer; transition: all 0.2s; position: relative;
+  margin-bottom: 1rem;
+}
+.drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.drop-zone:hover, .drop-zone.drag-over {
+  border-color: var(--accent); background: var(--accent-bg);
+}
+.dz-icon { font-size: 2.5rem; margin-bottom: 0.6rem; display: block; }
+.dz-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.05rem; margin-bottom: 4px; }
+.dz-sub   { font-size: 13px; color: var(--muted); margin-bottom: 1rem; }
+.btn-choose {
+  display: inline-block; background: var(--text); color: #fff;
+  padding: 9px 22px; border-radius: 100px; font-size: 13px;
+  font-weight: 500; cursor: pointer; border: none;
+  font-family: 'DM Sans', sans-serif;
+  transition: opacity 0.15s, transform 0.15s;
+}
+.btn-choose:hover { opacity: 0.82; transform: translateY(-1px); }
+
+/* ── CONTROLS ROW ───────────────────────────────────────── */
+.controls-row {
+  display: flex; gap: 10px; align-items: center; margin-bottom: 1rem; flex-wrap: wrap;
+}
+.btn-run {
+  background: var(--accent); color: #fff; border: none;
+  padding: 12px 32px; border-radius: 100px;
+  font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.95rem;
+  cursor: pointer; letter-spacing: -0.2px;
+  box-shadow: 0 3px 14px rgba(212,80,10,0.32);
+  transition: transform 0.15s, opacity 0.15s, box-shadow 0.15s;
+}
+.btn-run:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(212,80,10,0.42); }
+.btn-run:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+
+.btn-reset {
+  background: var(--surface); color: var(--muted);
+  border: 1px solid var(--border); padding: 11px 20px;
+  border-radius: 100px; font-size: 13px; font-weight: 500;
+  cursor: pointer; font-family: 'DM Sans', sans-serif;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-reset:hover { border-color: var(--border2); color: var(--text); }
+
+/* ── STATUS ─────────────────────────────────────────────── */
+.status-bar {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 16px; border-radius: 100px;
+  border: 1px solid var(--border); background: var(--surface);
+  font-size: 13px; color: var(--muted);
+  margin-bottom: 1.5rem; width: fit-content;
+}
+.s-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.s-dot.running { background: var(--accent); animation: pulse 0.9s infinite; }
+.s-dot.done    { background: var(--green); }
+.s-dot.error   { background: #dc2626; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+/* ── RESULTS ─────────────────────────────────────────────── */
+.results-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+}
+.rcard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px; overflow: hidden;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.rcard:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+
+.rcard-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 13px;
+  border-bottom: 1px solid var(--border);
+}
+.badge {
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: 10px; padding: 2px 8px; border-radius: 6px; letter-spacing: 0.4px;
+}
+.b-in  { background: #f1f5f9; color: #475569; }
+.b-m1  { background: var(--accent2-bg); color: var(--accent2); }
+.b-m2  { background: var(--accent-bg);  color: var(--accent);  }
+.b-m3  { background: var(--green-bg);   color: var(--green);   }
+
+.rcard-title { font-size: 12px; font-weight: 500; }
+.rcard-sub   { font-size: 11px; color: var(--muted); margin-left: auto; }
+
+.rcard-canvas {
+  background: #111; min-height: 130px;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+.rcard-canvas canvas { max-width: 100%; height: 130px; object-fit: contain; display: none; }
+.placeholder {
+  color: rgba(255,255,255,0.18); font-size: 11px;
+  text-align: center; padding: 1rem;
+}
+
+.rcard-meta {
+  padding: 7px 13px; font-size: 11px; color: var(--muted);
+  background: var(--surface2); border-top: 1px solid var(--border);
+  min-height: 28px; line-height: 1.5;
+  font-family: 'DM Sans', sans-serif;
+}
+
+/* ── ADAPTIVE LEGEND ─────────────────────────────────────── */
+.legend {
+  margin-top: 1.5rem; padding: 1rem 1.25rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px;
+  display: none;
+}
+.legend h3 { font-size: 12px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+.legend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+.legend-item { display: flex; gap: 8px; align-items: flex-start; }
+.legend-icon { width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 12px; }
+.legend-text p { font-size: 12px; font-weight: 500; }
+.legend-text span { font-size: 11px; color: var(--muted); }
+
+/* ── LOADING OVERLAY ─────────────────────────────────────── */
+#cv-overlay {
+  position: fixed; inset: 0; background: rgba(28,25,23,0.92);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 999; color: #fff; gap: 12px;
+}
+.spinner {
+  width: 38px; height: 38px; border-radius: 50%;
+  border: 3px solid rgba(255,255,255,0.12);
+  border-top-color: #f97316;
+  animation: spin 0.75s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#cv-overlay p { font-size: 13px; opacity: 0.55; }
+#cv-overlay strong { font-family: 'Syne', sans-serif; font-size: 1.2rem; font-weight: 800; }
+</style>
+</head>
+<body>
+
+<div id="cv-overlay">
+  <div class="spinner"></div>
+  <strong>PlateSnap</strong>
+  <p>Loading OpenCV.js — please wait…</p>
+</div>
+
+<header>
+  <div class="logo">Plate<span>Snap</span></div>
+  <span class="tag">DIP Project</span>
+  <span class="header-right">Adaptive M1 → M2 → M3 Pipeline</span>
+</header>
+
+<div class="page">
+  <div class="hero">
+    <h1>Adaptive Plate<br><em>Detection</em></h1>
+    <p>Upload any vehicle photo — dark, angled, blurry — the pipeline auto-tunes to handle it.</p>
+  </div>
+
+  <!-- Pipeline track -->
+  <div class="pipeline">
+    <div class="pipe-step" id="ps-m1"><div class="pipe-dot"></div>M1 · Edge Detection</div>
+    <span class="pipe-sep">→</span>
+    <div class="pipe-step" id="ps-m2"><div class="pipe-dot"></div>M2 · Plate Candidate</div>
+    <span class="pipe-sep">→</span>
+    <div class="pipe-step" id="ps-m3"><div class="pipe-dot"></div>M3 · Binarize</div>
+  </div>
+
+  <!-- Drop zone -->
+  <div class="drop-zone" id="drop-zone">
+    <input type="file" id="file-input" accept="image/*">
+    <span class="dz-icon">📷</span>
+    <div class="dz-title">Drop a vehicle photo here</div>
+    <div class="dz-sub">Any lighting, angle or resolution · JPEG / PNG / WEBP</div>
+    <button class="btn-choose" onclick="document.getElementById('file-input').click();event.stopPropagation()">Choose File</button>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls-row">
+    <button class="btn-run" id="btn-run" disabled>▶ Run Pipeline</button>
+    <button class="btn-reset" id="btn-reset">Reset</button>
+    <div class="status-bar">
+      <div class="s-dot" id="s-dot"></div>
+      <span id="s-text">Upload an image to get started</span>
+    </div>
+  </div>
+
+  <!-- Cards -->
+  <div class="results-grid">
+    <div class="rcard">
+      <div class="rcard-head">
+        <span class="badge b-in">INPUT</span>
+        <span class="rcard-title">Original</span>
+      </div>
+      <div class="rcard-canvas">
+        <div class="placeholder" id="ph-orig">awaiting upload</div>
+        <canvas id="cv-orig"></canvas>
+      </div>
+      <div class="rcard-meta" id="meta-orig">—</div>
+    </div>
+
+    <div class="rcard">
+      <div class="rcard-head">
+        <span class="badge b-m1">M1</span>
+        <span class="rcard-title">Canny Edge Map</span>
+        <span class="rcard-sub">Auto-Canny</span>
+      </div>
+      <div class="rcard-canvas">
+        <div class="placeholder" id="ph-m1">awaiting run</div>
+        <canvas id="cv-m1"></canvas>
+      </div>
+      <div class="rcard-meta" id="meta-m1">CLAHE + bilateral filter + Canny</div>
+    </div>
+
+    <div class="rcard">
+      <div class="rcard-head">
+        <span class="badge b-m2">M2</span>
+        <span class="rcard-title">Plate Candidate</span>
+        <span class="rcard-sub">Multi-pass</span>
+      </div>
+      <div class="rcard-canvas">
+        <div class="placeholder" id="ph-m2">awaiting run</div>
+        <canvas id="cv-m2"></canvas>
+      </div>
+      <div class="rcard-meta" id="meta-m2">Morph closing + scored contour filter</div>
+    </div>
+
+    <div class="rcard">
+      <div class="rcard-head">
+        <span class="badge b-m3">M3</span>
+        <span class="rcard-title">Binary Plate</span>
+        <span class="rcard-sub">Otsu / Adaptive</span>
+      </div>
+      <div class="rcard-canvas">
+        <div class="placeholder" id="ph-m3">awaiting run</div>
+        <canvas id="cv-m3"></canvas>
+      </div>
+      <div class="rcard-meta" id="meta-m3">Perspective warp + auto binarization</div>
+    </div>
+  </div>
+
+  <!-- Adaptive legend -->
+  <div class="legend" id="legend">
+    <h3>Adaptive decisions taken this run</h3>
+    <div class="legend-grid" id="legend-grid"></div>
+  </div>
+</div>
+
+<img id="src-img" style="display:none" crossorigin="anonymous">
+<script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="cvReady=true;document.getElementById('cv-overlay').style.display='none'"></script>
+
+<script>
+let cvReady = false;
+let srcMat   = null;   // holds the current loaded cv.Mat
+
+// ── UI helpers ──────────────────────────────────────────────────────────────
+function setStatus(state, msg) {
+  document.getElementById('s-text').textContent = msg;
+  document.getElementById('s-dot').className = 's-dot ' + state;
+}
+function setPipe(idx) {   // 0=m1 active, 1=m2 active, 2=m3 active, 3=all done
+  ['ps-m1','ps-m2','ps-m3'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (i < idx)       el.className = 'pipe-step done';
+    else if (i === idx) el.className = 'pipe-step active';
+    else                el.className = 'pipe-step';
+  });
+}
+function showCanvas(id, mat, metaText) {
+  const canvas = document.getElementById('cv-' + id);
+  const ph     = document.getElementById('ph-' + id);
+  cv.imshow(canvas, mat);
+  ph.style.display = 'none';
+  canvas.style.display = 'block';
+  document.getElementById('meta-' + id).textContent = metaText;
+}
+function addLegendItem(icon, bg, title, detail) {
+  const g = document.getElementById('legend-grid');
+  const d = document.createElement('div');
+  d.className = 'legend-item';
+  d.innerHTML = `<div class="legend-icon" style="background:${bg}">${icon}</div>
+    <div class="legend-text"><p>${title}</p><span>${detail}</span></div>`;
+  g.appendChild(d);
+}
+function resetUI() {
+  ['orig','m1','m2','m3'].forEach(id => {
+    document.getElementById('cv-' + id).style.display = 'none';
+    document.getElementById('ph-' + id).style.display = 'block';
+  });
+  ['ps-m1','ps-m2','ps-m3'].forEach(id => {
+    document.getElementById(id).className = 'pipe-step';
+  });
+  document.getElementById('legend').style.display = 'none';
+  document.getElementById('legend-grid').innerHTML = '';
+  document.getElementById('btn-run').disabled = true;
+  setStatus('', 'Upload an image to get started');
+  if (srcMat) { srcMat.delete(); srcMat = null; }
+}
+
+// ── File loading ─────────────────────────────────────────────────────────────
+const fileInput = document.getElementById('file-input');
+const dropZone  = document.getElementById('drop-zone');
+
+fileInput.addEventListener('change', e => { if(e.target.files[0]) loadFile(e.target.files[0]); });
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+document.getElementById('btn-reset').addEventListener('click', resetUI);
+
+function loadFile(file) {
+  const reader = new FileReader();
+  reader.onload = evt => {
+    const img = document.getElementById('src-img');
+    img.onload = () => {
+      if (srcMat) srcMat.delete();
+      const c = document.getElementById('cv-orig');
+      const ctx = c.getContext('2d');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      ctx.drawImage(img, 0, 0);
+      srcMat = cv.imread(c);
+      document.getElementById('ph-orig').style.display = 'none';
+      c.style.display = 'block';
+      document.getElementById('meta-orig').textContent =
+        `${img.naturalWidth} × ${img.naturalHeight} px`;
+      document.getElementById('btn-run').disabled = false;
+      setStatus('', `Image loaded (${img.naturalWidth}×${img.naturalHeight}) — ready`);
+    };
+    img.src = evt.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Score a bounding rect as a plate candidate
+function scorePlateRect(rect, imgW, imgH) {
+  const { x, y, width: w, height: h } = rect;
+  const area   = w * h;
+  const aspect = w / Math.max(h, 1);
+  const imgArea = imgW * imgH;
+
+  // Hard absolute-size gates — a plate is never tiny in pixels
+  if (w < imgW * 0.05)  return -1;   // too narrow
+  if (h < imgH * 0.02)  return -1;   // too short (catches 13px tall junk)
+  if (w < 30 || h < 10) return -1;   // absolute minimum pixels
+
+  // Aspect ratio gate (wide plates: 2:1 to 8:1)
+  if (aspect < 1.5 || aspect > 9.0) return -1;
+
+  // Area gate (0.1% to 15% of image)
+  if (area < 0.001 * imgArea || area > 0.15 * imgArea) return -1;
+
+  // Score: reward plate-like aspect (peak at 4.5), reward larger area, reward lower half of image
+  const aspectFit = Math.max(0, 1.0 - Math.abs(aspect - 4.5) / 4.5);
+  const areaNorm  = Math.sqrt(area / imgArea);           // sqrt so large doesn't dominate
+  const yCenter   = (y + h * 0.5) / imgH;
+  const posBonus  = yCenter > 0.3 ? 1.2 : 1.0;          // plates usually in bottom 70%
+
+  return areaNorm * aspectFit * posBonus;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// M1 — Adaptive CLAHE + Bilateral + Auto-Canny
+// ═══════════════════════════════════════════════════════════════════════════
+function m1_edge_detection(src) {
+  const gray = new cv.Mat();
+  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+  // Compute std-dev for adaptive params
+  const mean = new cv.Mat(); const stdmat = new cv.Mat();
+  cv.meanStdDev(gray, mean, stdmat);
+  const std = stdmat.data64F[0];
+  mean.delete(); stdmat.delete();
+
+  // CLAHE: low-contrast images get higher clip
+  const clip = Math.max(1.5, Math.min(4.0, 80.0 / (std + 1e-5)));
+  const clahe = new cv.CLAHE(clip, new cv.Size(8, 8));
+  const enhanced = new cv.Mat();
+  clahe.apply(gray, enhanced);
+  clahe.delete(); gray.delete();
+
+  // Bilateral: scale with image size
+  const shortSide = Math.min(src.rows, src.cols);
+  const bilD  = Math.max(5, Math.min(15, Math.floor(shortSide / 60) * 2 + 1));
+  const sigma = Math.max(15, Math.min(75, Math.floor(std * 0.8)));
+  const filtered = new cv.Mat();
+  cv.bilateralFilter(enhanced, filtered, bilD, sigma, sigma, cv.BORDER_DEFAULT);
+  enhanced.delete();
+
+  // Auto-Canny via Otsu — but ensure we also run a second pass with relaxed
+  // thresholds if the first produces very few edges (dark/night images)
+  const blurred = new cv.Mat();
+  cv.GaussianBlur(filtered, blurred, new cv.Size(5, 5), 0);
+  const dummy = new cv.Mat();
+  const otsuVal = cv.threshold(blurred, dummy, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
+  dummy.delete(); blurred.delete();
+
+  let cannyLow  = Math.max(10,  Math.min(Math.floor(otsuVal * 0.5), 80));
+  let cannyHigh = Math.max(50,  Math.min(Math.floor(otsuVal * 1.2), 300));
+
+  const edges = new cv.Mat();
+  cv.Canny(filtered, edges, cannyLow, cannyHigh);
+
+  // If very few edge pixels found, lower thresholds (very dark image)
+  const nonZero = cv.countNonZero(edges);
+  if (nonZero < src.rows * src.cols * 0.003) {
+    cannyLow  = Math.max(5,  Math.floor(cannyLow  * 0.4));
+    cannyHigh = Math.max(25, Math.floor(cannyHigh * 0.4));
+    cv.Canny(filtered, edges, cannyLow, cannyHigh);
+  }
+
+  filtered.delete();
+  return { edges, meta: { clip: clip.toFixed(2), bilD, sigma, cannyLow, cannyHigh, std: std.toFixed(1) } };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// M2 — Multi-strategy plate search
+// Strategy A: morph-close on edges → contours (works for clear images)
+// Strategy B: Otsu-threshold the CLAHE gray → contours (works for low-edge images)
+// Strategy C: horizontal Sobel + morph → contours (works for blurry images)
+// Takes the best-scored rect across all strategies
+// ═══════════════════════════════════════════════════════════════════════════
+function m2_plate_candidate(src, edges) {
+  const imgH = edges.rows, imgW = edges.cols;
+
+  // Grayscale + CLAHE of src for strategies B & C
+  const grayFull = new cv.Mat();
+  cv.cvtColor(src, grayFull, cv.COLOR_RGBA2GRAY);
+  const clahe2 = new cv.CLAHE(2.0, new cv.Size(8,8));
+  const enhanced = new cv.Mat();
+  clahe2.apply(grayFull, enhanced);
+  clahe2.delete(); grayFull.delete();
+
+  let candidates = [];  // array of { x,y,width,height }
+
+  // ── Strategy A: morph close on Canny edges ─────────────────────────────
+  {
+    let kw = Math.max(9, Math.floor(imgW * 0.03));
+    if (kw % 2 === 0) kw++;
+    const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(kw, 3));
+    const closed = new cv.Mat();
+    cv.morphologyEx(edges, closed, cv.MORPH_CLOSE, kernel);
+    kernel.delete();
+    // Also dilate vertically to merge nearby rows
+    const vk = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(1, 5));
+    cv.dilate(closed, closed, vk); vk.delete();
+
+    const cnts = new cv.MatVector(); const h = new cv.Mat();
+    cv.findContours(closed, cnts, h, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+    h.delete(); closed.delete();
+    for (let i = 0; i < cnts.size(); i++) {
+      const c = cnts.get(i); candidates.push(cv.boundingRect(c)); c.delete();
+    }
+    cnts.delete();
+  }
+
+  // ── Strategy B: Otsu threshold → find white/dark rectangles ───────────
+  {
+    const blr = new cv.Mat();
+    cv.GaussianBlur(enhanced, blr, new cv.Size(5,5), 0);
+    const thresh = new cv.Mat();
+    cv.threshold(blr, thresh, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU);
+    blr.delete();
+    const kB = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(Math.max(7, Math.floor(imgW*0.03)), 1));
+    cv.morphologyEx(thresh, thresh, cv.MORPH_CLOSE, kB); kB.delete();
+    const cnts = new cv.MatVector(); const h = new cv.Mat();
+    cv.findContours(thresh, cnts, h, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+    h.delete(); thresh.delete();
+    for (let i = 0; i < cnts.size(); i++) {
+      const c = cnts.get(i); candidates.push(cv.boundingRect(c)); c.delete();
+    }
+    cnts.delete();
+  }
+
+  // ── Strategy C: Sobel-X (character strokes are vertical lines) ─────────
+  {
+    const sobelX = new cv.Mat();
+    cv.Sobel(enhanced, sobelX, cv.CV_8U, 1, 0, 3);
+    const kC = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(Math.max(9, Math.floor(imgW*0.025)), 5));
+    cv.morphologyEx(sobelX, sobelX, cv.MORPH_CLOSE, kC); kC.delete();
+    const thresh2 = new cv.Mat();
+    cv.threshold(sobelX, thresh2, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
+    sobelX.delete();
+    const cnts = new cv.MatVector(); const h = new cv.Mat();
+    cv.findContours(thresh2, cnts, h, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+    h.delete(); thresh2.delete();
+    for (let i = 0; i < cnts.size(); i++) {
+      const c = cnts.get(i); candidates.push(cv.boundingRect(c)); c.delete();
+    }
+    cnts.delete();
+  }
+
+  enhanced.delete();
+
+  // ── Pick best candidate ────────────────────────────────────────────────
+  let bestRect = null, bestScore = -1, passUsed = 0;
+  for (const rect of candidates) {
+    const s = scorePlateRect(rect, imgW, imgH);
+    if (s > bestScore) { bestScore = s; bestRect = rect; passUsed = 1; }
+  }
+
+  if (!bestRect || bestScore < 0) {
+    // Final fallback: just take the lower-centre third of the image
+    bestRect = {
+      x: Math.floor(imgW * 0.1),
+      y: Math.floor(imgH * 0.5),
+      width:  Math.floor(imgW * 0.8),
+      height: Math.floor(imgH * 0.4)
+    };
+    passUsed = -1;
+    bestScore = 0;
+  }
+
+  // ── Pad bounding box ───────────────────────────────────────────────────
+  const padX = Math.max(6, Math.floor(bestRect.width  * 0.04));
+  const padY = Math.max(6, Math.floor(bestRect.height * 0.08));
+  const x1 = Math.max(0,    bestRect.x - padX);
+  const y1 = Math.max(0,    bestRect.y - padY);
+  const x2 = Math.min(imgW, bestRect.x + bestRect.width  + padX);
+  const y2 = Math.min(imgH, bestRect.y + bestRect.height + padY);
+  const paddedRect = { x:x1, y:y1, width:x2-x1, height:y2-y1 };
+
+  // ── Debug overlay ──────────────────────────────────────────────────────
+  const debug = src.clone();
+  cv.rectangle(debug, new cv.Point(x1, y1), new cv.Point(x2, y2), [0, 210, 60, 255], 3);
+  const lbl = passUsed > 0 ? `score=${bestScore.toFixed(3)}` : 'fallback region';
+  cv.putText(debug, lbl, new cv.Point(x1, Math.max(y1 - 8, 18)),
+    cv.FONT_HERSHEY_SIMPLEX, 0.55, [0, 210, 60, 255], 2);
+
+  return {
+    debug, paddedRect,
+    meta: { strategies: 'A+B+C', score: bestScore.toFixed(4),
+            rect: `${x1},${y1} ${paddedRect.width}×${paddedRect.height}`,
+            passUsed }
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// M3 — Adaptive Perspective Warp + Auto Binarization
+// ═══════════════════════════════════════════════════════════════════════════
+function m3_perspective_binarize(src, rect) {
+  // Validate rect is large enough to warp
+  if (rect.width < 20 || rect.height < 8) {
+    // Expand to a safe minimum region around centre
+    const imgH = src.rows, imgW = src.cols;
+    const cx = rect.x + rect.width  / 2;
+    const cy = rect.y + rect.height / 2;
+    rect = {
+      x: Math.max(0, Math.floor(cx - imgW * 0.3)),
+      y: Math.max(0, Math.floor(cy - imgH * 0.15)),
+      width:  Math.min(imgW, Math.floor(imgW * 0.6)),
+      height: Math.min(imgH, Math.floor(imgH * 0.3))
+    };
+  }
+
+  const { x, y, width: w, height: h } = rect;
+
+  const gray = new cv.Mat();
+  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+
+  // ── Try to find a proper 4-corner quad inside the crop ─────────────────
+  const cropRect = new cv.Rect(x, y, w, h);
+  const cropGray = gray.roi(cropRect);
+
+  // Equalise the crop for better contour finding regardless of lighting
+  const eqCrop = new cv.Mat();
+  cv.equalizeHist(cropGray, eqCrop);
+  cropGray.delete();
+
+  const blurCrop = new cv.Mat();
+  cv.GaussianBlur(eqCrop, blurCrop, new cv.Size(3,3), 0);
+  eqCrop.delete();
+  const cropEdge = new cv.Mat();
+  cv.threshold(blurCrop, cropEdge, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
+  blurCrop.delete();
+
+  const cropCnts = new cv.MatVector(); const hier2 = new cv.Mat();
+  cv.findContours(cropEdge, cropCnts, hier2, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+  cropEdge.delete(); hier2.delete();
+
+  let srcPts = null; let cornerSrc = 'bounding rect';
+  if (cropCnts.size() > 0) {
+    let biggest = null, bigArea = 0;
+    for (let i = 0; i < cropCnts.size(); i++) {
+      const c = cropCnts.get(i);
+      const a = cv.contourArea(c);
+      if (a > bigArea) { bigArea = a; if (biggest) biggest.delete(); biggest = c; }
+      else c.delete();
+    }
+    if (biggest) {
+      const peri = cv.arcLength(biggest, true);
+      for (const eps of [0.02, 0.03, 0.05, 0.08, 0.12]) {
+        const approx = new cv.Mat();
+        cv.approxPolyDP(biggest, approx, eps * peri, true);
+        if (approx.rows === 4) {
+          const pts = [];
+          for (let i = 0; i < 4; i++)
+            pts.push({ px: approx.data32S[i*2] + x, py: approx.data32S[i*2+1] + y });
+          // Order: TL, TR, BR, BL by sum/diff
+          pts.sort((a,b)=>(a.px+a.py)-(b.px+b.py));
+          const tl = pts[0], br = pts[3];
+          const mid1 = pts[1], mid2 = pts[2];
+          const tr = mid1.px > mid2.px ? mid1 : mid2;
+          const bl = mid1.px > mid2.px ? mid2 : mid1;
+          srcPts = cv.matFromArray(4,1,cv.CV_32FC2,
+            [tl.px,tl.py, tr.px,tr.py, br.px,br.py, bl.px,bl.py]);
+          cornerSrc = 'approxPolyDP';
+          approx.delete(); break;
+        }
+        approx.delete();
+      }
+      biggest.delete();
+    }
+  }
+  cropCnts.delete();
+
+  // Fallback: use the padded bounding rect corners directly
+  if (!srcPts)
+    srcPts = cv.matFromArray(4,1,cv.CV_32FC2, [x,y, x+w,y, x+w,y+h, x,y+h]);
+
+  // ── Output size: fix height 80px, keep aspect ──────────────────────────
+  const outH = 80;
+  const outW = Math.max(160, Math.min(500, Math.round(outH * (w / Math.max(h, 1)))));
+  const dstPts = cv.matFromArray(4,1,cv.CV_32FC2,
+    [0,0, outW-1,0, outW-1,outH-1, 0,outH-1]);
+
+  const M = cv.getPerspectiveTransform(srcPts, dstPts);
+  const warped = new cv.Mat();
+  cv.warpPerspective(gray, warped, M, new cv.Size(outW, outH));
+  srcPts.delete(); dstPts.delete(); M.delete(); gray.delete();
+
+  // ── Adaptive binarization ──────────────────────────────────────────────
+  // Equalise the warped crop first so binarization is lighting-independent
+  const warpedEq = new cv.Mat();
+  cv.equalizeHist(warped, warpedEq);
+
+  const meanW = new cv.Mat(); const stdW = new cv.Mat();
+  cv.meanStdDev(warpedEq, meanW, stdW);
+  const localStd = stdW.data64F[0];
+  meanW.delete(); stdW.delete();
+
+  const binary = new cv.Mat();
+  let method = '';
+  if (localStd >= 25) {
+    cv.threshold(warpedEq, binary, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
+    method = 'Otsu';
+  } else {
+    // Low contrast — use adaptive with tighter block
+    const block = Math.max(11, ((Math.floor(outW / 12)) | 1));
+    cv.adaptiveThreshold(warpedEq, binary, 255,
+      cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, block, 3);
+    method = `Adaptive(b=${block})`;
+  }
+  warped.delete(); warpedEq.delete();
+
+  // Invert if background is dark
+  const meanB = new cv.Mat(); const stdB2 = new cv.Mat();
+  cv.meanStdDev(binary, meanB, stdB2);
+  if (meanB.data64F[0] < 127) cv.bitwise_not(binary, binary);
+  meanB.delete(); stdB2.delete();
+
+  // Remove salt-and-pepper noise
+  cv.medianBlur(binary, binary, 3);
+
+  return { binary, meta: { cornerSrc, outSize: `${outW}×${outH}`, localStd: localStd.toFixed(1), method } };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RUN BUTTON
+// ═══════════════════════════════════════════════════════════════════════════
+document.getElementById('btn-run').addEventListener('click', () => {
+  if (!cvReady || !srcMat) return;
+  const btn = document.getElementById('btn-run');
+  btn.disabled = true;
+  document.getElementById('legend').style.display = 'none';
+  document.getElementById('legend-grid').innerHTML = '';
+
+  const delay = ms => new Promise(res => setTimeout(res, ms));
+
+  (async () => {
+    try {
+      // ── M1 ──
+      setStatus('running', 'M1 — CLAHE + bilateral filter + auto-Canny…');
+      setPipe(0); await delay(40);
+
+      const r1 = m1_edge_detection(srcMat);
+      const edgesRGBA = new cv.Mat();
+      cv.cvtColor(r1.edges, edgesRGBA, cv.COLOR_GRAY2RGBA);
+      showCanvas('m1', edgesRGBA,
+        `CLAHE clip=${r1.meta.clip} · bilateral d=${r1.meta.bilD} · Canny [${r1.meta.cannyLow},${r1.meta.cannyHigh}] · std=${r1.meta.std}`);
+      edgesRGBA.delete();
+
+      // ── M2 ──
+      setStatus('running', 'M2 — 3-strategy plate search (edges + threshold + Sobel)…');
+      setPipe(1); await delay(40);
+
+      const r2 = m2_plate_candidate(srcMat, r1.edges);
+      r1.edges.delete();
+      showCanvas('m2', r2.debug,
+        `Strategies A+B+C · score=${r2.meta.score} · rect [${r2.meta.rect}]`);
+      r2.debug.delete();
+
+      // ── M3 ──
+      setStatus('running', 'M3 — perspective warp + adaptive binarization…');
+      setPipe(2); await delay(40);
+
+      const r3 = m3_perspective_binarize(srcMat, r2.paddedRect);
+      const binRGBA = new cv.Mat();
+      cv.cvtColor(r3.binary, binRGBA, cv.COLOR_GRAY2RGBA);
+      showCanvas('m3', binRGBA,
+        `${r3.meta.cornerSrc} · warp ${r3.meta.outSize} · ${r3.meta.method} · localStd=${r3.meta.localStd}`);
+      binRGBA.delete(); r3.binary.delete();
+
+      setPipe(3);
+      setStatus('done', 'Pipeline complete ✓');
+      btn.disabled = false;
+
+      // Legend
+      document.getElementById('legend').style.display = 'block';
+      addLegendItem('📊', '#e8f1fb', `CLAHE clip = ${r1.meta.clip}`,
+        `Image std=${r1.meta.std} → ${parseFloat(r1.meta.clip) > 2 ? 'low contrast, clip raised' : 'normal contrast'}`);
+      addLegendItem('🔍', '#fef0e9', `Canny [${r1.meta.cannyLow}, ${r1.meta.cannyHigh}]`,
+        `Auto-derived from Otsu threshold of blurred grayscale`);
+      addLegendItem('🔎', '#e5f7ed', `Plate search: 3 strategies`,
+        `A=morph-close edges  B=Otsu threshold  C=Sobel-X — best score wins`);
+      addLegendItem('🏆', '#fef3cd', `Best score = ${r2.meta.score}`,
+        `Scored by: √(area/imgArea) × aspect_fitness × y-position bonus`);
+      addLegendItem('🖼', '#f1f5f9', `Warp → ${r3.meta.outSize}`,
+        `Height fixed 80px, width from plate aspect ratio`);
+      addLegendItem('⚡', parseFloat(r3.meta.localStd) >= 25 ? '#e5f7ed' : '#fef3cd',
+        `Binarize: ${r3.meta.method}`,
+        `localStd=${r3.meta.localStd} → ${parseFloat(r3.meta.localStd) >= 25 ? 'Otsu (good contrast)' : 'Adaptive Gaussian (low contrast)'}`);
+
+    } catch(err) {
+      setStatus('error', 'Error: ' + err.message);
+      btn.disabled = false;
+      console.error(err);
+    }
+  })();
+});
+</script>
+</body>
+</html>
