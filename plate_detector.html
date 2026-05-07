@@ -3,849 +3,1545 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PlateSnap — Adaptive License Plate Detector</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
+<title>LPR Pipeline — Frontend</title>
 <style>
-:root {
-  --bg: #f5f2ed;
-  --surface: #ffffff;
-  --surface2: #f9f7f4;
-  --border: #e4dfd7;
-  --border2: #d4cfc7;
-  --text: #1c1917;
-  --muted: #7c7570;
-  --accent: #d4500a;
-  --accent-bg: #fef0e9;
-  --accent2: #1d6fb8;
-  --accent2-bg: #e8f1fb;
-  --green: #1a8a4a;
-  --green-bg: #e5f7ed;
-  --amber: #b45309;
-  --amber-bg: #fef3cd;
-  --shadow: 0 1px 8px rgba(0,0,0,0.08);
-  --shadow-lg: 0 4px 24px rgba(0,0,0,0.13);
-}
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;800&family=Inter:wght@300;400;500;600&display=swap');
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0b0f;
+    --bg2: #111218;
+    --bg3: #181921;
+    --surface: #1e2030;
+    --surface2: #252740;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.14);
+    --text: #e8eaf6;
+    --text2: #8b8fa8;
+    --text3: #4a4d63;
+    --accent: #6c6ff8;
+    --accent2: #a78bfa;
+    --green: #34d399;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --cyan: #22d3ee;
+    --m1: #6c6ff8;
+    --m2: #f59e0b;
+    --m3: #10b981;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+    --display: 'Syne', sans-serif;
+  }
 
-body {
-  font-family: 'DM Sans', sans-serif;
-  background: var(--bg);
-  color: var(--text);
-  min-height: 100vh;
-}
+  * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ── HEADER ─────────────────────────────────────────────── */
-header {
-  background: var(--text);
-  padding: 0.85rem 1.75rem;
-  display: flex; align-items: center; gap: 12px;
-}
-.logo {
-  font-family: 'Syne', sans-serif;
-  font-weight: 800; font-size: 1.35rem;
-  color: #fff; letter-spacing: -0.5px;
-}
-.logo span { color: #f97316; }
-.tag {
-  font-size: 10px; font-weight: 700;
-  background: rgba(255,255,255,0.12);
-  color: rgba(255,255,255,0.7);
-  padding: 3px 9px; border-radius: 20px;
-  letter-spacing: 0.8px; text-transform: uppercase;
-}
-.header-right {
-  margin-left: auto;
-  font-size: 12px; color: rgba(255,255,255,0.35);
-}
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
 
-/* ── LAYOUT ─────────────────────────────────────────────── */
-.page { max-width: 1080px; margin: 0 auto; padding: 2rem 1.5rem 5rem; }
+  /* ─── GRID OVERLAY ─── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(108,111,248,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(108,111,248,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
 
-.hero { text-align: center; margin-bottom: 2rem; }
-.hero h1 {
-  font-family: 'Syne', sans-serif;
-  font-size: clamp(2rem, 5vw, 3rem);
-  font-weight: 800; letter-spacing: -1.5px; line-height: 1.05;
-  margin-bottom: 0.6rem;
-}
-.hero h1 em {
-  font-style: normal; color: var(--accent);
-}
-.hero p { color: var(--muted); font-size: 0.95rem; max-width: 440px; margin: 0 auto; line-height: 1.65; }
+  /* ─── GLOW ORBS ─── */
+  .orb {
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(120px);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .orb1 { width: 600px; height: 600px; top: -200px; left: -200px; background: rgba(108,111,248,0.08); }
+  .orb2 { width: 400px; height: 400px; bottom: -100px; right: -100px; background: rgba(16,185,129,0.06); }
 
-/* ── PIPELINE TRACK ─────────────────────────────────────── */
-.pipeline {
-  display: flex; align-items: center; justify-content: center;
-  gap: 0; margin: 1.5rem 0 2rem; flex-wrap: wrap;
-}
-.pipe-step {
-  display: flex; align-items: center; gap: 7px;
-  padding: 7px 16px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  font-size: 12px; font-weight: 500; color: var(--muted);
-  transition: all 0.25s;
-}
-.pipe-step:first-child  { border-radius: 20px 0 0 20px; }
-.pipe-step:last-child   { border-radius: 0 20px 20px 0; }
-.pipe-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; opacity: 0.4; }
-.pipe-sep  { color: var(--border2); font-size: 14px; padding: 0 2px; }
-.pipe-step.active { background: var(--text); color: #fff; border-color: var(--text); }
-.pipe-step.active .pipe-dot { opacity: 1; }
-.pipe-step.done { background: var(--green-bg); color: var(--green); border-color: #a7dfc0; }
+  /* ─── LAYOUT ─── */
+  .wrapper { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 0 24px 80px; }
 
-/* ── DROP ZONE ──────────────────────────────────────────── */
-.drop-zone {
-  border: 2px dashed var(--border2);
-  border-radius: 18px; background: var(--surface);
-  padding: 2.5rem 1.5rem; text-align: center;
-  cursor: pointer; transition: all 0.2s; position: relative;
-  margin-bottom: 1rem;
-}
-.drop-zone input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-.drop-zone:hover, .drop-zone.drag-over {
-  border-color: var(--accent); background: var(--accent-bg);
-}
-.dz-icon { font-size: 2.5rem; margin-bottom: 0.6rem; display: block; }
-.dz-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 1.05rem; margin-bottom: 4px; }
-.dz-sub   { font-size: 13px; color: var(--muted); margin-bottom: 1rem; }
-.btn-choose {
-  display: inline-block; background: var(--text); color: #fff;
-  padding: 9px 22px; border-radius: 100px; font-size: 13px;
-  font-weight: 500; cursor: pointer; border: none;
-  font-family: 'DM Sans', sans-serif;
-  transition: opacity 0.15s, transform 0.15s;
-}
-.btn-choose:hover { opacity: 0.82; transform: translateY(-1px); }
+  /* ─── HEADER ─── */
+  header {
+    padding: 48px 0 40px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 48px;
+  }
 
-/* ── CONTROLS ROW ───────────────────────────────────────── */
-.controls-row {
-  display: flex; gap: 10px; align-items: center; margin-bottom: 1rem; flex-wrap: wrap;
-}
-.btn-run {
-  background: var(--accent); color: #fff; border: none;
-  padding: 12px 32px; border-radius: 100px;
-  font-family: 'Syne', sans-serif; font-weight: 700; font-size: 0.95rem;
-  cursor: pointer; letter-spacing: -0.2px;
-  box-shadow: 0 3px 14px rgba(212,80,10,0.32);
-  transition: transform 0.15s, opacity 0.15s, box-shadow 0.15s;
-}
-.btn-run:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(212,80,10,0.42); }
-.btn-run:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
+  .logo-row { display: flex; align-items: center; gap: 14px; }
 
-.btn-reset {
-  background: var(--surface); color: var(--muted);
-  border: 1px solid var(--border); padding: 11px 20px;
-  border-radius: 100px; font-size: 13px; font-weight: 500;
-  cursor: pointer; font-family: 'DM Sans', sans-serif;
-  transition: border-color 0.15s, color 0.15s;
-}
-.btn-reset:hover { border-color: var(--border2); color: var(--text); }
+  .logo-icon {
+    width: 44px; height: 44px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
 
-/* ── STATUS ─────────────────────────────────────────────── */
-.status-bar {
-  display: flex; align-items: center; gap: 9px;
-  padding: 9px 16px; border-radius: 100px;
-  border: 1px solid var(--border); background: var(--surface);
-  font-size: 13px; color: var(--muted);
-  margin-bottom: 1.5rem; width: fit-content;
-}
-.s-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
-.s-dot.running { background: var(--accent); animation: pulse 0.9s infinite; }
-.s-dot.done    { background: var(--green); }
-.s-dot.error   { background: #dc2626; }
-@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.25} }
+  h1 {
+    font-family: var(--display);
+    font-size: clamp(22px, 4vw, 32px);
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    background: linear-gradient(135deg, #e8eaf6 0%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.1;
+  }
 
-/* ── RESULTS ─────────────────────────────────────────────── */
-.results-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 14px;
-}
-.rcard {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 16px; overflow: hidden;
-  box-shadow: var(--shadow);
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-.rcard:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+  .header-sub {
+    font-size: 13px;
+    color: var(--text2);
+    margin-top: 4px;
+    font-weight: 400;
+    -webkit-text-fill-color: var(--text2);
+  }
 
-.rcard-head {
-  display: flex; align-items: center; gap: 8px;
-  padding: 9px 13px;
-  border-bottom: 1px solid var(--border);
-}
-.badge {
-  font-family: 'Syne', sans-serif; font-weight: 800;
-  font-size: 10px; padding: 2px 8px; border-radius: 6px; letter-spacing: 0.4px;
-}
-.b-in  { background: #f1f5f9; color: #475569; }
-.b-m1  { background: var(--accent2-bg); color: var(--accent2); }
-.b-m2  { background: var(--accent-bg);  color: var(--accent);  }
-.b-m3  { background: var(--green-bg);   color: var(--green);   }
+  .status-badge {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(52,211,153,0.1);
+    border: 1px solid rgba(52,211,153,0.2);
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 12px;
+    color: var(--green);
+    font-family: var(--mono);
+    white-space: nowrap;
+    align-self: flex-start;
+    margin-top: 6px;
+  }
 
-.rcard-title { font-size: 12px; font-weight: 500; }
-.rcard-sub   { font-size: 11px; color: var(--muted); margin-left: auto; }
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--green);
+    animation: pulse 2s infinite;
+  }
 
-.rcard-canvas {
-  background: #111; min-height: 130px;
-  display: flex; align-items: center; justify-content: center;
-  position: relative;
-}
-.rcard-canvas canvas { max-width: 100%; height: 130px; object-fit: contain; display: none; }
-.placeholder {
-  color: rgba(255,255,255,0.18); font-size: 11px;
-  text-align: center; padding: 1rem;
-}
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.8); }
+  }
 
-.rcard-meta {
-  padding: 7px 13px; font-size: 11px; color: var(--muted);
-  background: var(--surface2); border-top: 1px solid var(--border);
-  min-height: 28px; line-height: 1.5;
-  font-family: 'DM Sans', sans-serif;
-}
+  /* ─── PIPELINE DIAGRAM ─── */
+  .pipeline-section { margin-bottom: 52px; }
+  .section-label {
+    font-size: 11px;
+    font-family: var(--mono);
+    letter-spacing: 2px;
+    color: var(--text3);
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
 
-/* ── ADAPTIVE LEGEND ─────────────────────────────────────── */
-.legend {
-  margin-top: 1.5rem; padding: 1rem 1.25rem;
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 14px;
-  display: none;
-}
-.legend h3 { font-size: 12px; font-weight: 700; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
-.legend-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
-.legend-item { display: flex; gap: 8px; align-items: flex-start; }
-.legend-icon { width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center; font-size: 12px; }
-.legend-text p { font-size: 12px; font-weight: 500; }
-.legend-text span { font-size: 11px; color: var(--muted); }
+  .pipeline-flow {
+    display: grid;
+    grid-template-columns: 1fr 32px 1fr 32px 1fr;
+    align-items: center;
+    gap: 0;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    overflow: hidden;
+    position: relative;
+  }
 
-/* ── LOADING OVERLAY ─────────────────────────────────────── */
-#cv-overlay {
-  position: fixed; inset: 0; background: rgba(28,25,23,0.92);
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  z-index: 999; color: #fff; gap: 12px;
-}
-.spinner {
-  width: 38px; height: 38px; border-radius: 50%;
-  border: 3px solid rgba(255,255,255,0.12);
-  border-top-color: #f97316;
-  animation: spin 0.75s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-#cv-overlay p { font-size: 13px; opacity: 0.55; }
-#cv-overlay strong { font-family: 'Syne', sans-serif; font-size: 1.2rem; font-weight: 800; }
+  .pipeline-flow::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--m1), var(--m2), var(--m3));
+  }
+
+  .stage-card {
+    background: var(--surface);
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    padding: 20px 18px;
+    position: relative;
+    transition: border-color 0.2s, transform 0.2s;
+    cursor: default;
+  }
+
+  .stage-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+
+  .stage-card.m1 { border-top: 2px solid var(--m1); }
+  .stage-card.m2 { border-top: 2px solid var(--m2); }
+  .stage-card.m3 { border-top: 2px solid var(--m3); }
+
+  .stage-member {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--text2);
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+  }
+
+  .stage-name {
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 10px;
+  }
+
+  .stage-steps {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .stage-steps li {
+    font-size: 11px;
+    color: var(--text2);
+    font-family: var(--mono);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .step-dot {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .m1 .step-dot { background: var(--m1); }
+  .m2 .step-dot { background: var(--m2); }
+  .m3 .step-dot { background: var(--m3); }
+
+  .pipe-arrow {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text3);
+    font-size: 18px;
+  }
+
+  /* ─── UPLOAD AREA ─── */
+  .upload-section { margin-bottom: 52px; }
+
+  .upload-zone {
+    background: var(--bg2);
+    border: 1.5px dashed var(--border2);
+    border-radius: 16px;
+    padding: 52px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(108,111,248,0.05); }
+  .upload-zone.drag { border-style: solid; }
+
+  .upload-zone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+
+  .upload-icon {
+    font-size: 40px; margin-bottom: 14px; display: block;
+    filter: grayscale(0.3);
+  }
+
+  .upload-title {
+    font-family: var(--display);
+    font-size: 18px; font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  .upload-sub {
+    font-size: 13px;
+    color: var(--text2);
+    margin-bottom: 16px;
+  }
+
+  .upload-formats {
+    display: flex; justify-content: center; gap: 8px; flex-wrap: wrap;
+  }
+
+  .fmt-badge {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--text2);
+  }
+
+  /* ─── IMAGE PREVIEW ─── */
+  .preview-strip {
+    display: flex; align-items: center; gap: 16px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin-top: 16px;
+  }
+
+  .preview-thumb {
+    width: 72px; height: 52px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1px solid var(--border2);
+    display: block;
+  }
+
+  .preview-info { flex: 1; }
+  .preview-name { font-size: 14px; color: var(--text); font-weight: 500; }
+  .preview-meta { font-size: 12px; color: var(--text2); font-family: var(--mono); margin-top: 2px; }
+
+  /* ─── RUN BUTTON ─── */
+  .run-btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%;
+    margin-top: 20px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 16px 32px;
+    font-family: var(--display);
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    letter-spacing: 0.3px;
+    transition: opacity 0.15s, transform 0.15s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .run-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+  .run-btn:active:not(:disabled) { transform: translateY(0); }
+  .run-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .run-btn .btn-shimmer {
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.12) 50%, transparent 100%);
+    transform: translateX(-100%);
+    transition: transform 0.6s;
+  }
+  .run-btn:hover .btn-shimmer { transform: translateX(100%); }
+
+  /* ─── STAGES PROGRESS ─── */
+  .progress-track {
+    display: flex; gap: 4px; margin-bottom: 28px;
+  }
+
+  .progress-seg {
+    flex: 1; height: 3px; border-radius: 2px;
+    background: var(--border2);
+    transition: background 0.4s;
+  }
+
+  .progress-seg.done.s1 { background: var(--m1); }
+  .progress-seg.done.s2 { background: var(--m2); }
+  .progress-seg.done.s3 { background: var(--m3); }
+  .progress-seg.active { background: linear-gradient(90deg, var(--accent), transparent); animation: shimmer 1.5s infinite; }
+
+  @keyframes shimmer {
+    0% { background-position: -200px; }
+    100% { background-position: 200px; }
+  }
+
+  /* ─── RESULTS ─── */
+  .results-section { display: none; }
+  .results-section.show { display: block; }
+
+  .results-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 28px; flex-wrap: wrap; gap: 12px;
+  }
+
+  .confidence-bar-wrap {
+    display: flex; align-items: center; gap: 12px;
+  }
+
+  .confidence-label { font-size: 13px; color: var(--text2); }
+
+  .confidence-bar {
+    width: 180px; height: 6px;
+    background: var(--surface2);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .confidence-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--green), var(--cyan));
+    transition: width 1s ease;
+  }
+
+  .confidence-val {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--green);
+  }
+
+  /* Stage panels */
+  .stage-panels { display: flex; flex-direction: column; gap: 20px; }
+
+  .stage-panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+  }
+
+  .stage-panel-header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .stage-panel-header:hover { background: rgba(255,255,255,0.02); }
+
+  .stage-bullet {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .sp-m1 .stage-bullet { background: var(--m1); box-shadow: 0 0 8px var(--m1); }
+  .sp-m2 .stage-bullet { background: var(--m2); box-shadow: 0 0 8px var(--m2); }
+  .sp-m3 .stage-bullet { background: var(--m3); box-shadow: 0 0 8px var(--m3); }
+
+  .stage-panel-title {
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 600;
+    flex: 1;
+  }
+
+  .stage-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text2);
+  }
+
+  .toggle-icon { color: var(--text3); font-size: 16px; transition: transform 0.2s; }
+  .stage-panel.open .toggle-icon { transform: rotate(180deg); }
+
+  .stage-panel-body {
+    display: none;
+    padding: 22px;
+  }
+
+  .stage-panel.open .stage-panel-body { display: block; }
+
+  /* Meta grid */
+  .meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .meta-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+
+  .meta-key {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--text3);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .meta-val {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  /* Visual canvas */
+  .canvas-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .canvas-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  .canvas-box canvas {
+    width: 100%; display: block;
+  }
+
+  .canvas-label {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--text2);
+    padding: 8px 10px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+  }
+
+  /* Warning chips */
+  .warnings { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+  .warn-chip {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(251,191,36,0.1);
+    border: 1px solid rgba(251,191,36,0.2);
+    border-radius: 8px;
+    padding: 5px 12px;
+    font-size: 12px;
+    color: var(--amber);
+    font-family: var(--mono);
+  }
+
+  /* ─── FINAL RESULT ─── */
+  .final-box {
+    background: linear-gradient(135deg, rgba(108,111,248,0.08), rgba(16,185,129,0.06));
+    border: 1px solid rgba(108,111,248,0.2);
+    border-radius: 16px;
+    padding: 32px;
+    text-align: center;
+    margin-top: 28px;
+  }
+
+  .final-label {
+    font-size: 11px;
+    font-family: var(--mono);
+    color: var(--text2);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  .final-plate {
+    display: inline-block;
+    background: #fefefe;
+    border: 3px solid #1a1a1a;
+    border-radius: 10px;
+    padding: 16px 40px;
+    font-family: var(--mono);
+    font-size: 36px;
+    font-weight: 600;
+    color: #0a0a0a;
+    letter-spacing: 8px;
+    margin-bottom: 18px;
+    position: relative;
+    box-shadow: 0 4px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.05);
+  }
+
+  .final-meta-row {
+    display: flex; justify-content: center; gap: 24px; flex-wrap: wrap;
+  }
+
+  .final-meta-item { font-size: 13px; color: var(--text2); }
+  .final-meta-item span { color: var(--text); font-weight: 500; }
+
+  /* ─── LOADER ─── */
+  .loader {
+    display: none;
+    flex-direction: column; align-items: center; gap: 16px;
+    padding: 48px;
+  }
+
+  .loader.show { display: flex; }
+
+  .spinner {
+    width: 40px; height: 40px;
+    border: 2px solid var(--border2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loader-text {
+    font-size: 14px; color: var(--text2);
+    font-family: var(--mono);
+  }
+
+  .loader-stage {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text3);
+  }
+
+  /* ─── RESET ─── */
+  .reset-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: transparent;
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 13px;
+    color: var(--text2);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    font-family: var(--sans);
+  }
+  .reset-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ─── ERROR ─── */
+  .error-box {
+    display: none;
+    background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.2);
+    border-radius: 12px;
+    padding: 16px 20px;
+    color: var(--red);
+    font-size: 13px;
+    font-family: var(--mono);
+    margin-top: 16px;
+  }
+  .error-box.show { display: block; }
+
+  /* ─── SCROLLBAR ─── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--surface2); border-radius: 3px; }
+
+  /* ─── RESPONSIVE ─── */
+  @media (max-width: 700px) {
+    .pipeline-flow {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 20px auto 20px auto;
+    }
+    .pipe-arrow { transform: rotate(90deg); }
+    .confidence-bar { width: 120px; }
+  }
 </style>
 </head>
 <body>
 
-<div id="cv-overlay">
-  <div class="spinner"></div>
-  <strong>PlateSnap</strong>
-  <p>Loading OpenCV.js — please wait…</p>
-</div>
+<div class="orb orb1"></div>
+<div class="orb orb2"></div>
 
-<header>
-  <div class="logo">Plate<span>Snap</span></div>
-  <span class="tag">DIP Project</span>
-  <span class="header-right">Adaptive M1 → M2 → M3 Pipeline</span>
-</header>
+<div class="wrapper">
 
-<div class="page">
-  <div class="hero">
-    <h1>Adaptive Plate<br><em>Detection</em></h1>
-    <p>Upload any vehicle photo — dark, angled, blurry — the pipeline auto-tunes to handle it.</p>
-  </div>
+  <!-- ─── HEADER ─── -->
+  <header>
+    <div>
+      <div class="logo-row">
+        <div class="logo-icon">🚗</div>
+        <div>
+          <h1>LPR Pipeline</h1>
+          <div class="header-sub">License Plate Recognition — Adaptive Image Processing</div>
+        </div>
+      </div>
+    </div>
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      M1 · M2 · M3 active
+    </div>
+  </header>
 
-  <!-- Pipeline track -->
-  <div class="pipeline">
-    <div class="pipe-step" id="ps-m1"><div class="pipe-dot"></div>M1 · Edge Detection</div>
-    <span class="pipe-sep">→</span>
-    <div class="pipe-step" id="ps-m2"><div class="pipe-dot"></div>M2 · Plate Candidate</div>
-    <span class="pipe-sep">→</span>
-    <div class="pipe-step" id="ps-m3"><div class="pipe-dot"></div>M3 · Binarize</div>
-  </div>
+  <!-- ─── PIPELINE DIAGRAM ─── -->
+  <div class="pipeline-section">
+    <div class="section-label">pipeline architecture</div>
+    <div class="pipeline-flow">
 
-  <!-- Drop zone -->
-  <div class="drop-zone" id="drop-zone">
-    <input type="file" id="file-input" accept="image/*">
-    <span class="dz-icon">📷</span>
-    <div class="dz-title">Drop a vehicle photo here</div>
-    <div class="dz-sub">Any lighting, angle or resolution · JPEG / PNG / WEBP</div>
-    <button class="btn-choose" onclick="document.getElementById('file-input').click();event.stopPropagation()">Choose File</button>
-  </div>
+      <div class="stage-card m1">
+        <div class="stage-member">M1 — Edge Detection</div>
+        <div class="stage-name">Grayscale + CLAHE<br>+ Canny</div>
+        <ul class="stage-steps">
+          <li><div class="step-dot"></div>BGR → Grayscale</li>
+          <li><div class="step-dot"></div>CLAHE contrast enhance</li>
+          <li><div class="step-dot"></div>Bilateral filter</li>
+          <li><div class="step-dot"></div>Otsu-tuned Canny</li>
+        </ul>
+      </div>
 
-  <!-- Controls -->
-  <div class="controls-row">
-    <button class="btn-run" id="btn-run" disabled>▶ Run Pipeline</button>
-    <button class="btn-reset" id="btn-reset">Reset</button>
-    <div class="status-bar">
-      <div class="s-dot" id="s-dot"></div>
-      <span id="s-text">Upload an image to get started</span>
+      <div class="pipe-arrow">→</div>
+
+      <div class="stage-card m2">
+        <div class="stage-member">M2 — Plate Candidate</div>
+        <div class="stage-name">Morphology +<br>Contour Scoring</div>
+        <ul class="stage-steps">
+          <li><div class="step-dot"></div>Adaptive morph kernels</li>
+          <li><div class="step-dot"></div>Multi-source contours</li>
+          <li><div class="step-dot"></div>Fill + solidity scoring</li>
+          <li><div class="step-dot"></div>Best rect selection</li>
+        </ul>
+      </div>
+
+      <div class="pipe-arrow">→</div>
+
+      <div class="stage-card m3">
+        <div class="stage-member">M3 — Binarization</div>
+        <div class="stage-name">Perspective Warp +<br>Binarize</div>
+        <ul class="stage-steps">
+          <li><div class="step-dot"></div>Quad / rotated rect</li>
+          <li><div class="step-dot"></div>Warp quality scoring</li>
+          <li><div class="step-dot"></div>Otsu vs adaptive bin</li>
+          <li><div class="step-dot"></div>Polarity correction</li>
+        </ul>
+      </div>
+
     </div>
   </div>
 
-  <!-- Cards -->
-  <div class="results-grid">
-    <div class="rcard">
-      <div class="rcard-head">
-        <span class="badge b-in">INPUT</span>
-        <span class="rcard-title">Original</span>
+  <!-- ─── UPLOAD ─── -->
+  <div class="upload-section" id="uploadSection">
+    <div class="section-label">input image</div>
+
+    <div class="upload-zone" id="dropZone">
+      <input type="file" accept="image/*" id="fileInput">
+      <span class="upload-icon">📸</span>
+      <div class="upload-title">Drop a car image here</div>
+      <div class="upload-sub">or click to browse — the pipeline adapts to any lighting, angle, or resolution</div>
+      <div class="upload-formats">
+        <span class="fmt-badge">JPG</span>
+        <span class="fmt-badge">PNG</span>
+        <span class="fmt-badge">WEBP</span>
+        <span class="fmt-badge">BMP</span>
       </div>
-      <div class="rcard-canvas">
-        <div class="placeholder" id="ph-orig">awaiting upload</div>
-        <canvas id="cv-orig"></canvas>
-      </div>
-      <div class="rcard-meta" id="meta-orig">—</div>
     </div>
 
-    <div class="rcard">
-      <div class="rcard-head">
-        <span class="badge b-m1">M1</span>
-        <span class="rcard-title">Canny Edge Map</span>
-        <span class="rcard-sub">Auto-Canny</span>
+    <div class="preview-strip" id="previewStrip" style="display:none">
+      <img class="preview-thumb" id="previewThumb" alt="">
+      <div class="preview-info">
+        <div class="preview-name" id="previewName"></div>
+        <div class="preview-meta" id="previewMeta"></div>
       </div>
-      <div class="rcard-canvas">
-        <div class="placeholder" id="ph-m1">awaiting run</div>
-        <canvas id="cv-m1"></canvas>
-      </div>
-      <div class="rcard-meta" id="meta-m1">CLAHE + bilateral filter + Canny</div>
+      <button class="reset-btn" id="clearBtn">✕ Clear</button>
     </div>
 
-    <div class="rcard">
-      <div class="rcard-head">
-        <span class="badge b-m2">M2</span>
-        <span class="rcard-title">Plate Candidate</span>
-        <span class="rcard-sub">Multi-pass</span>
-      </div>
-      <div class="rcard-canvas">
-        <div class="placeholder" id="ph-m2">awaiting run</div>
-        <canvas id="cv-m2"></canvas>
-      </div>
-      <div class="rcard-meta" id="meta-m2">Morph closing + scored contour filter</div>
-    </div>
+    <div class="error-box" id="errorBox"></div>
 
-    <div class="rcard">
-      <div class="rcard-head">
-        <span class="badge b-m3">M3</span>
-        <span class="rcard-title">Binary Plate</span>
-        <span class="rcard-sub">Otsu / Adaptive</span>
-      </div>
-      <div class="rcard-canvas">
-        <div class="placeholder" id="ph-m3">awaiting run</div>
-        <canvas id="cv-m3"></canvas>
-      </div>
-      <div class="rcard-meta" id="meta-m3">Perspective warp + auto binarization</div>
-    </div>
+    <button class="run-btn" id="runBtn" disabled>
+      <div class="btn-shimmer"></div>
+      <span id="runBtnText">▶ Run Pipeline</span>
+    </button>
   </div>
 
-  <!-- Adaptive legend -->
-  <div class="legend" id="legend">
-    <h3>Adaptive decisions taken this run</h3>
-    <div class="legend-grid" id="legend-grid"></div>
+  <!-- ─── LOADER ─── -->
+  <div class="loader" id="loader">
+    <div class="spinner"></div>
+    <div class="loader-text" id="loaderText">Initialising pipeline…</div>
+    <div class="loader-stage" id="loaderStage"></div>
   </div>
-</div>
 
-<img id="src-img" style="display:none" crossorigin="anonymous">
-<script async src="https://docs.opencv.org/4.8.0/opencv.js" onload="cvReady=true;document.getElementById('cv-overlay').style.display='none'"></script>
+  <!-- ─── RESULTS ─── -->
+  <div class="results-section" id="results">
+
+    <div class="results-header">
+      <div class="section-label" style="margin-bottom:0">pipeline output</div>
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+        <div class="confidence-bar-wrap">
+          <span class="confidence-label">confidence</span>
+          <div class="confidence-bar">
+            <div class="confidence-fill" id="confFill" style="width:0%"></div>
+          </div>
+          <span class="confidence-val" id="confVal">—</span>
+        </div>
+        <button class="reset-btn" id="resetBtn">↺ New image</button>
+      </div>
+    </div>
+
+    <!-- Progress track -->
+    <div class="progress-track">
+      <div class="progress-seg done s1" id="seg1"></div>
+      <div class="progress-seg done s2" id="seg2"></div>
+      <div class="progress-seg done s3" id="seg3"></div>
+    </div>
+
+    <!-- Stage panels -->
+    <div class="stage-panels">
+
+      <!-- M1 -->
+      <div class="stage-panel sp-m1 open" id="panel1">
+        <div class="stage-panel-header" onclick="togglePanel('panel1')">
+          <div class="stage-bullet"></div>
+          <div class="stage-panel-title">M1 — Edge Detection</div>
+          <span class="stage-tag" id="m1tag">—</span>
+          <span class="toggle-icon">⌄</span>
+        </div>
+        <div class="stage-panel-body">
+          <div class="meta-grid" id="m1meta"></div>
+          <div class="canvas-row" id="m1canvases"></div>
+          <div class="warnings" id="m1warns"></div>
+        </div>
+      </div>
+
+      <!-- M2 -->
+      <div class="stage-panel sp-m2" id="panel2">
+        <div class="stage-panel-header" onclick="togglePanel('panel2')">
+          <div class="stage-bullet"></div>
+          <div class="stage-panel-title">M2 — Plate Candidate</div>
+          <span class="stage-tag" id="m2tag">—</span>
+          <span class="toggle-icon">⌄</span>
+        </div>
+        <div class="stage-panel-body">
+          <div class="meta-grid" id="m2meta"></div>
+          <div class="canvas-row" id="m2canvases"></div>
+          <div class="warnings" id="m2warns"></div>
+        </div>
+      </div>
+
+      <!-- M3 -->
+      <div class="stage-panel sp-m3" id="panel3">
+        <div class="stage-panel-header" onclick="togglePanel('panel3')">
+          <div class="stage-bullet"></div>
+          <div class="stage-panel-title">M3 — Perspective & Binarize</div>
+          <span class="stage-tag" id="m3tag">—</span>
+          <span class="toggle-icon">⌄</span>
+        </div>
+        <div class="stage-panel-body">
+          <div class="meta-grid" id="m3meta"></div>
+          <div class="canvas-row" id="m3canvases"></div>
+          <div class="warnings" id="m3warns"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Final plate result -->
+    <div class="final-box" id="finalBox">
+      <div class="final-label">processed plate crop — ready for OCR</div>
+      <div id="finalPlateWrap">
+        <canvas id="finalCanvas" style="max-width:100%; border-radius:8px; display:block; margin:0 auto 18px;"></canvas>
+      </div>
+      <div class="final-meta-row">
+        <div class="final-meta-item">Warp mode: <span id="fWarpMode">—</span></div>
+        <div class="final-meta-item">Warp score: <span id="fWarpScore">—</span></div>
+        <div class="final-meta-item">Binarization: <span id="fBin">—</span></div>
+        <div class="final-meta-item">Output size: <span id="fSize">—</span></div>
+      </div>
+    </div>
+
+  </div><!-- /results -->
+
+</div><!-- /wrapper -->
 
 <script>
-let cvReady = false;
-let srcMat   = null;   // holds the current loaded cv.Mat
+// ─── PIPELINE SIMULATION ENGINE ───────────────────────────────────────
+// Implements M1, M2, M3 logic directly in JS/Canvas so the frontend
+// works standalone (no Python server). Mirrors the notebook's adaptive logic.
 
-// ── UI helpers ──────────────────────────────────────────────────────────────
-function setStatus(state, msg) {
-  document.getElementById('s-text').textContent = msg;
-  document.getElementById('s-dot').className = 's-dot ' + state;
-}
-function setPipe(idx) {   // 0=m1 active, 1=m2 active, 2=m3 active, 3=all done
-  ['ps-m1','ps-m2','ps-m3'].forEach((id, i) => {
-    const el = document.getElementById(id);
-    if (i < idx)       el.className = 'pipe-step done';
-    else if (i === idx) el.className = 'pipe-step active';
-    else                el.className = 'pipe-step';
-  });
-}
-function showCanvas(id, mat, metaText) {
-  const canvas = document.getElementById('cv-' + id);
-  const ph     = document.getElementById('ph-' + id);
-  cv.imshow(canvas, mat);
-  ph.style.display = 'none';
-  canvas.style.display = 'block';
-  document.getElementById('meta-' + id).textContent = metaText;
-}
-function addLegendItem(icon, bg, title, detail) {
-  const g = document.getElementById('legend-grid');
-  const d = document.createElement('div');
-  d.className = 'legend-item';
-  d.innerHTML = `<div class="legend-icon" style="background:${bg}">${icon}</div>
-    <div class="legend-text"><p>${title}</p><span>${detail}</span></div>`;
-  g.appendChild(d);
-}
-function resetUI() {
-  ['orig','m1','m2','m3'].forEach(id => {
-    document.getElementById('cv-' + id).style.display = 'none';
-    document.getElementById('ph-' + id).style.display = 'block';
-  });
-  ['ps-m1','ps-m2','ps-m3'].forEach(id => {
-    document.getElementById(id).className = 'pipe-step';
-  });
-  document.getElementById('legend').style.display = 'none';
-  document.getElementById('legend-grid').innerHTML = '';
-  document.getElementById('btn-run').disabled = true;
-  setStatus('', 'Upload an image to get started');
-  if (srcMat) { srcMat.delete(); srcMat = null; }
-}
+let loadedImage = null;
+let originalImageData = null;
 
-// ── File loading ─────────────────────────────────────────────────────────────
-const fileInput = document.getElementById('file-input');
-const dropZone  = document.getElementById('drop-zone');
+// ─── FILE HANDLING ────────────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+const previewStrip = document.getElementById('previewStrip');
+const previewThumb = document.getElementById('previewThumb');
+const previewName = document.getElementById('previewName');
+const previewMeta = document.getElementById('previewMeta');
+const runBtn = document.getElementById('runBtn');
+const clearBtn = document.getElementById('clearBtn');
+const errorBox = document.getElementById('errorBox');
 
-fileInput.addEventListener('change', e => { if(e.target.files[0]) loadFile(e.target.files[0]); });
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault(); dropZone.classList.remove('drag-over');
-  if(e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
-});
-document.getElementById('btn-reset').addEventListener('click', resetUI);
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag'); handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => handleFile(fileInput.files[0]));
+clearBtn.addEventListener('click', resetAll);
+document.getElementById('resetBtn').addEventListener('click', resetAll);
+document.getElementById('runBtn').addEventListener('click', runPipeline);
 
-function loadFile(file) {
+function handleFile(file) {
+  errorBox.classList.remove('show');
+  if (!file || !file.type.startsWith('image/')) {
+    showError('Please upload a valid image file (JPG, PNG, WEBP, BMP).');
+    return;
+  }
   const reader = new FileReader();
-  reader.onload = evt => {
-    const img = document.getElementById('src-img');
+  reader.onload = (e) => {
+    const img = new Image();
     img.onload = () => {
-      if (srcMat) srcMat.delete();
-      const c = document.getElementById('cv-orig');
-      const ctx = c.getContext('2d');
-      c.width = img.naturalWidth; c.height = img.naturalHeight;
-      ctx.drawImage(img, 0, 0);
-      srcMat = cv.imread(c);
-      document.getElementById('ph-orig').style.display = 'none';
-      c.style.display = 'block';
-      document.getElementById('meta-orig').textContent =
-        `${img.naturalWidth} × ${img.naturalHeight} px`;
-      document.getElementById('btn-run').disabled = false;
-      setStatus('', `Image loaded (${img.naturalWidth}×${img.naturalHeight}) — ready`);
+      loadedImage = img;
+      previewThumb.src = e.target.result;
+      previewName.textContent = file.name;
+      previewMeta.textContent = `${img.width} × ${img.height}px · ${(file.size/1024).toFixed(1)} KB · ${file.type}`;
+      previewStrip.style.display = 'flex';
+      runBtn.disabled = false;
     };
-    img.src = evt.target.result;
+    img.onerror = () => showError('Could not decode image. Try a different file.');
+    img.src = e.target.result;
   };
   reader.readAsDataURL(file);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// HELPERS
-// ═══════════════════════════════════════════════════════════════════════════
-
-// Score a bounding rect as a plate candidate
-function scorePlateRect(rect, imgW, imgH) {
-  const { x, y, width: w, height: h } = rect;
-  const area   = w * h;
-  const aspect = w / Math.max(h, 1);
-  const imgArea = imgW * imgH;
-
-  // Hard absolute-size gates — a plate is never tiny in pixels
-  if (w < imgW * 0.05)  return -1;   // too narrow
-  if (h < imgH * 0.02)  return -1;   // too short (catches 13px tall junk)
-  if (w < 30 || h < 10) return -1;   // absolute minimum pixels
-
-  // Aspect ratio gate (wide plates: 2:1 to 8:1)
-  if (aspect < 1.5 || aspect > 9.0) return -1;
-
-  // Area gate (0.1% to 15% of image)
-  if (area < 0.001 * imgArea || area > 0.15 * imgArea) return -1;
-
-  // Score: reward plate-like aspect (peak at 4.5), reward larger area, reward lower half of image
-  const aspectFit = Math.max(0, 1.0 - Math.abs(aspect - 4.5) / 4.5);
-  const areaNorm  = Math.sqrt(area / imgArea);           // sqrt so large doesn't dominate
-  const yCenter   = (y + h * 0.5) / imgH;
-  const posBonus  = yCenter > 0.3 ? 1.2 : 1.0;          // plates usually in bottom 70%
-
-  return areaNorm * aspectFit * posBonus;
+function showError(msg) {
+  errorBox.textContent = '⚠ ' + msg;
+  errorBox.classList.add('show');
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// M1 — Adaptive CLAHE + Bilateral + Auto-Canny
-// ═══════════════════════════════════════════════════════════════════════════
-function m1_edge_detection(src) {
-  const gray = new cv.Mat();
-  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
-
-  // Compute std-dev for adaptive params
-  const mean = new cv.Mat(); const stdmat = new cv.Mat();
-  cv.meanStdDev(gray, mean, stdmat);
-  const std = stdmat.data64F[0];
-  mean.delete(); stdmat.delete();
-
-  // CLAHE: low-contrast images get higher clip
-  const clip = Math.max(1.5, Math.min(4.0, 80.0 / (std + 1e-5)));
-  const clahe = new cv.CLAHE(clip, new cv.Size(8, 8));
-  const enhanced = new cv.Mat();
-  clahe.apply(gray, enhanced);
-  clahe.delete(); gray.delete();
-
-  // Bilateral: scale with image size
-  const shortSide = Math.min(src.rows, src.cols);
-  const bilD  = Math.max(5, Math.min(15, Math.floor(shortSide / 60) * 2 + 1));
-  const sigma = Math.max(15, Math.min(75, Math.floor(std * 0.8)));
-  const filtered = new cv.Mat();
-  cv.bilateralFilter(enhanced, filtered, bilD, sigma, sigma, cv.BORDER_DEFAULT);
-  enhanced.delete();
-
-  // Auto-Canny via Otsu — but ensure we also run a second pass with relaxed
-  // thresholds if the first produces very few edges (dark/night images)
-  const blurred = new cv.Mat();
-  cv.GaussianBlur(filtered, blurred, new cv.Size(5, 5), 0);
-  const dummy = new cv.Mat();
-  const otsuVal = cv.threshold(blurred, dummy, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
-  dummy.delete(); blurred.delete();
-
-  let cannyLow  = Math.max(10,  Math.min(Math.floor(otsuVal * 0.5), 80));
-  let cannyHigh = Math.max(50,  Math.min(Math.floor(otsuVal * 1.2), 300));
-
-  const edges = new cv.Mat();
-  cv.Canny(filtered, edges, cannyLow, cannyHigh);
-
-  // If very few edge pixels found, lower thresholds (very dark image)
-  const nonZero = cv.countNonZero(edges);
-  if (nonZero < src.rows * src.cols * 0.003) {
-    cannyLow  = Math.max(5,  Math.floor(cannyLow  * 0.4));
-    cannyHigh = Math.max(25, Math.floor(cannyHigh * 0.4));
-    cv.Canny(filtered, edges, cannyLow, cannyHigh);
-  }
-
-  filtered.delete();
-  return { edges, meta: { clip: clip.toFixed(2), bilD, sigma, cannyLow, cannyHigh, std: std.toFixed(1) } };
+function resetAll() {
+  loadedImage = null;
+  fileInput.value = '';
+  previewStrip.style.display = 'none';
+  runBtn.disabled = true;
+  document.getElementById('uploadSection').style.display = 'block';
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('loader').classList.remove('show');
+  errorBox.classList.remove('show');
+  document.getElementById('runBtnText').textContent = '▶ Run Pipeline';
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// M2 — Multi-strategy plate search
-// Strategy A: morph-close on edges → contours (works for clear images)
-// Strategy B: Otsu-threshold the CLAHE gray → contours (works for low-edge images)
-// Strategy C: horizontal Sobel + morph → contours (works for blurry images)
-// Takes the best-scored rect across all strategies
-// ═══════════════════════════════════════════════════════════════════════════
-function m2_plate_candidate(src, edges) {
-  const imgH = edges.rows, imgW = edges.cols;
+function togglePanel(id) {
+  document.getElementById(id).classList.toggle('open');
+}
 
-  // Grayscale + CLAHE of src for strategies B & C
-  const grayFull = new cv.Mat();
-  cv.cvtColor(src, grayFull, cv.COLOR_RGBA2GRAY);
-  const clahe2 = new cv.CLAHE(2.0, new cv.Size(8,8));
-  const enhanced = new cv.Mat();
-  clahe2.apply(grayFull, enhanced);
-  clahe2.delete(); grayFull.delete();
+// ─── PIPELINE RUNNER ─────────────────────────────────────────────────
+async function runPipeline() {
+  if (!loadedImage) return;
+  errorBox.classList.remove('show');
+  runBtn.disabled = true;
+  document.getElementById('loader').classList.add('show');
+  document.getElementById('uploadSection').style.display = 'none';
+  document.getElementById('results').classList.remove('show');
 
-  let candidates = [];  // array of { x,y,width,height }
+  setLoader('M1 · Grayscale + CLAHE + Canny…', 'Analysing image statistics');
+  await delay(300);
 
-  // ── Strategy A: morph close on Canny edges ─────────────────────────────
-  {
-    let kw = Math.max(9, Math.floor(imgW * 0.03));
-    if (kw % 2 === 0) kw++;
-    const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(kw, 3));
-    const closed = new cv.Mat();
-    cv.morphologyEx(edges, closed, cv.MORPH_CLOSE, kernel);
-    kernel.delete();
-    // Also dilate vertically to merge nearby rows
-    const vk = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(1, 5));
-    cv.dilate(closed, closed, vk); vk.delete();
+  // Render image to offscreen canvas
+  const src = imageToCanvas(loadedImage);
+  const { w, h } = { w: src.width, h: src.height };
+  const ctx = src.getContext('2d');
+  const imgData = ctx.getImageData(0, 0, w, h);
 
-    const cnts = new cv.MatVector(); const h = new cv.Mat();
-    cv.findContours(closed, cnts, h, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-    h.delete(); closed.delete();
-    for (let i = 0; i < cnts.size(); i++) {
-      const c = cnts.get(i); candidates.push(cv.boundingRect(c)); c.delete();
-    }
-    cnts.delete();
-  }
-
-  // ── Strategy B: Otsu threshold → find white/dark rectangles ───────────
-  {
-    const blr = new cv.Mat();
-    cv.GaussianBlur(enhanced, blr, new cv.Size(5,5), 0);
-    const thresh = new cv.Mat();
-    cv.threshold(blr, thresh, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU);
-    blr.delete();
-    const kB = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(Math.max(7, Math.floor(imgW*0.03)), 1));
-    cv.morphologyEx(thresh, thresh, cv.MORPH_CLOSE, kB); kB.delete();
-    const cnts = new cv.MatVector(); const h = new cv.Mat();
-    cv.findContours(thresh, cnts, h, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-    h.delete(); thresh.delete();
-    for (let i = 0; i < cnts.size(); i++) {
-      const c = cnts.get(i); candidates.push(cv.boundingRect(c)); c.delete();
-    }
-    cnts.delete();
-  }
-
-  // ── Strategy C: Sobel-X (character strokes are vertical lines) ─────────
-  {
-    const sobelX = new cv.Mat();
-    cv.Sobel(enhanced, sobelX, cv.CV_8U, 1, 0, 3);
-    const kC = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(Math.max(9, Math.floor(imgW*0.025)), 5));
-    cv.morphologyEx(sobelX, sobelX, cv.MORPH_CLOSE, kC); kC.delete();
-    const thresh2 = new cv.Mat();
-    cv.threshold(sobelX, thresh2, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
-    sobelX.delete();
-    const cnts = new cv.MatVector(); const h = new cv.Mat();
-    cv.findContours(thresh2, cnts, h, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-    h.delete(); thresh2.delete();
-    for (let i = 0; i < cnts.size(); i++) {
-      const c = cnts.get(i); candidates.push(cv.boundingRect(c)); c.delete();
-    }
-    cnts.delete();
-  }
-
-  enhanced.delete();
-
-  // ── Pick best candidate ────────────────────────────────────────────────
-  let bestRect = null, bestScore = -1, passUsed = 0;
-  for (const rect of candidates) {
-    const s = scorePlateRect(rect, imgW, imgH);
-    if (s > bestScore) { bestScore = s; bestRect = rect; passUsed = 1; }
-  }
-
-  if (!bestRect || bestScore < 0) {
-    // Final fallback: just take the lower-centre third of the image
-    bestRect = {
-      x: Math.floor(imgW * 0.1),
-      y: Math.floor(imgH * 0.5),
-      width:  Math.floor(imgW * 0.8),
-      height: Math.floor(imgH * 0.4)
-    };
-    passUsed = -1;
-    bestScore = 0;
-  }
-
-  // ── Pad bounding box ───────────────────────────────────────────────────
-  const padX = Math.max(6, Math.floor(bestRect.width  * 0.04));
-  const padY = Math.max(6, Math.floor(bestRect.height * 0.08));
-  const x1 = Math.max(0,    bestRect.x - padX);
-  const y1 = Math.max(0,    bestRect.y - padY);
-  const x2 = Math.min(imgW, bestRect.x + bestRect.width  + padX);
-  const y2 = Math.min(imgH, bestRect.y + bestRect.height + padY);
-  const paddedRect = { x:x1, y:y1, width:x2-x1, height:y2-y1 };
-
-  // ── Debug overlay ──────────────────────────────────────────────────────
-  const debug = src.clone();
-  cv.rectangle(debug, new cv.Point(x1, y1), new cv.Point(x2, y2), [0, 210, 60, 255], 3);
-  const lbl = passUsed > 0 ? `score=${bestScore.toFixed(3)}` : 'fallback region';
-  cv.putText(debug, lbl, new cv.Point(x1, Math.max(y1 - 8, 18)),
-    cv.FONT_HERSHEY_SIMPLEX, 0.55, [0, 210, 60, 255], 2);
-
-  return {
-    debug, paddedRect,
-    meta: { strategies: 'A+B+C', score: bestScore.toFixed(4),
-            rect: `${x1},${y1} ${paddedRect.width}×${paddedRect.height}`,
-            passUsed }
+  // ── M1 ──────────────────────────────────────────────────────────────
+  const gray = toGrayscale(imgData, w, h);
+  const m1Stats = computeStats(gray);
+  const clahe = applyCLAHE(gray, w, h, m1Stats);
+  const bilateral = applyBilateral(clahe, w, h, m1Stats);
+  const { edges, canny_low, canny_high } = applyCanny(bilateral, w, h, m1Stats);
+  const m1meta = {
+    mean: m1Stats.mean.toFixed(0),
+    contrast: m1Stats.std.toFixed(1),
+    texture: m1Stats.texture.toFixed(1),
+    canny: `${canny_low}–${canny_high}`,
+    'bilateral d': Math.max(5, Math.min(15, Math.floor(Math.min(w,h)/60)*2+1)).toString(),
+    'CLAHE clip': Math.min(5, Math.max(2, +(2 + 50/(m1Stats.std+1e-5)).toFixed(2))).toFixed(2)
   };
+
+  await delay(250);
+  setLoader('M2 · Morphology + Contour Scoring…', 'Finding plate candidates');
+  await delay(300);
+
+  // ── M2 ──────────────────────────────────────────────────────────────
+  const { bestRect, m2score, source: m2src } = findPlateCandidates(edges, w, h, imgData);
+  const m2meta = {
+    score: m2score.toFixed(4),
+    source: m2src,
+    'kernel w': Math.max(9, ~~(w*0.022)).toString(),
+    'rect x': bestRect.x.toString(),
+    'rect y': bestRect.y.toString(),
+    'plate w': bestRect.w.toString(),
+    'plate h': bestRect.h.toString()
+  };
+
+  await delay(250);
+  setLoader('M3 · Perspective Warp + Binarize…', 'Correcting geometry and binarizing');
+  await delay(300);
+
+  // ── M3 ──────────────────────────────────────────────────────────────
+  const { warped, binary, warpScore, warpMode, localStd } = perspectiveBinarize(gray, bestRect, w, h, edges);
+
+  const globalConf = (m2score + warpScore) / 2;
+
+  // ── RENDER RESULTS ───────────────────────────────────────────────────
+  document.getElementById('loader').classList.remove('show');
+
+  // Confidence
+  const confPct = Math.min(100, Math.round(globalConf * 200));
+  document.getElementById('confFill').style.width = confPct + '%';
+  document.getElementById('confVal').textContent = (globalConf * 100).toFixed(1) + '%';
+
+  // M1 panel
+  document.getElementById('m1tag').textContent = `Canny ${canny_low}–${canny_high}`;
+  renderMeta('m1meta', m1meta);
+  const grayCanvas = grayToCanvas(gray, w, h);
+  const claheCanvas = grayToCanvas(clahe, w, h);
+  const edgeCanvas = grayToCanvas(edges, w, h);
+  renderCanvases('m1canvases', [
+    { canvas: src, label: `Original ${w}×${h}` },
+    { canvas: grayCanvas, label: 'Grayscale' },
+    { canvas: claheCanvas, label: `CLAHE clip=${m1meta['CLAHE clip']}` },
+    { canvas: edgeCanvas, label: `Canny ${canny_low}–${canny_high}` }
+  ]);
+  checkWarn('m1warns', m1Stats.edgeDensity < 0.01, 'Extremely low edge signal — image may be blank or overexposed');
+
+  // M2 panel
+  document.getElementById('m2tag').textContent = `score ${m2score.toFixed(3)} · ${m2src}`;
+  renderMeta('m2meta', m2meta);
+  const detCanvas = drawDetection(imgData, w, h, bestRect, m2src, m2score);
+  const cropCanvas = cropRegion(imgData, w, h, bestRect);
+  renderCanvases('m2canvases', [
+    { canvas: detCanvas, label: 'Best Detection' },
+    { canvas: cropCanvas, label: 'Plate Crop' }
+  ]);
+  checkWarn('m2warns', m2score < 0.002, 'Weak plate confidence — plate may be occluded or not present');
+
+  // M3 panel
+  document.getElementById('m3tag').textContent = `${warpMode} · score ${warpScore.toFixed(3)}`;
+  const warpedCanvas = grayToCanvas(warped.data, warped.w, warped.h);
+  const binaryCanvas = grayToCanvas(binary, warped.w, warped.h);
+  renderMeta('m3meta', {
+    'warp mode': warpMode,
+    'warp score': warpScore.toFixed(4),
+    'local std': localStd.toFixed(1),
+    'out w': warped.w.toString(),
+    'out h': warped.h.toString(),
+    binarization: 'otsu vs adaptive'
+  });
+  renderCanvases('m3canvases', [
+    { canvas: warpedCanvas, label: `Warped [${warpMode}]` },
+    { canvas: binaryCanvas, label: `Binary std=${localStd.toFixed(0)}` }
+  ]);
+  checkWarn('m3warns', warpScore < 0.2, 'Low warp confidence — perspective geometry unstable');
+
+  // Final result
+  const fc = document.getElementById('finalCanvas');
+  fc.width = binaryCanvas.width;
+  fc.height = binaryCanvas.height;
+  fc.getContext('2d').drawImage(binaryCanvas, 0, 0);
+  document.getElementById('fWarpMode').textContent = warpMode;
+  document.getElementById('fWarpScore').textContent = warpScore.toFixed(3);
+  document.getElementById('fBin').textContent = 'Otsu / Adaptive auto-select';
+  document.getElementById('fSize').textContent = `${warped.w} × ${warped.h}`;
+
+  document.getElementById('results').classList.add('show');
+  runBtn.disabled = false;
+  document.getElementById('uploadSection').style.display = 'block';
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// M3 — Adaptive Perspective Warp + Auto Binarization
-// ═══════════════════════════════════════════════════════════════════════════
-function m3_perspective_binarize(src, rect) {
-  // Validate rect is large enough to warp
-  if (rect.width < 20 || rect.height < 8) {
-    // Expand to a safe minimum region around centre
-    const imgH = src.rows, imgW = src.cols;
-    const cx = rect.x + rect.width  / 2;
-    const cy = rect.y + rect.height / 2;
-    rect = {
-      x: Math.max(0, Math.floor(cx - imgW * 0.3)),
-      y: Math.max(0, Math.floor(cy - imgH * 0.15)),
-      width:  Math.min(imgW, Math.floor(imgW * 0.6)),
-      height: Math.min(imgH, Math.floor(imgH * 0.3))
-    };
+function setLoader(text, stage) {
+  document.getElementById('loaderText').textContent = text;
+  document.getElementById('loaderStage').textContent = stage;
+}
+
+function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ─── IMAGE UTILS ─────────────────────────────────────────────────────
+function imageToCanvas(img) {
+  const MAX = 1200;
+  let w = img.width, h = img.height;
+  if (w > MAX || h > MAX) {
+    const s = Math.min(MAX/w, MAX/h);
+    w = ~~(w*s); h = ~~(h*s);
   }
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  c.getContext('2d').drawImage(img, 0, 0, w, h);
+  return c;
+}
 
-  const { x, y, width: w, height: h } = rect;
+function toGrayscale(imgData, w, h) {
+  const data = imgData.data;
+  const gray = new Uint8ClampedArray(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const r = data[i*4], g = data[i*4+1], b = data[i*4+2];
+    gray[i] = ~~(0.299*r + 0.587*g + 0.114*b);
+  }
+  return gray;
+}
 
-  const gray = new cv.Mat();
-  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+function computeStats(gray) {
+  let sum = 0, sumSq = 0, n = gray.length;
+  for (let i = 0; i < n; i++) { sum += gray[i]; sumSq += gray[i]*gray[i]; }
+  const mean = sum / n;
+  const std = Math.sqrt(sumSq/n - mean*mean);
+  // Laplacian variance as texture proxy
+  let lapSum = 0, lapN = 0;
+  // simplified 3x3 laplacian variance using sampled pixels
+  const stride = ~~(n / 5000) || 1;
+  for (let i = stride; i < n-stride; i += stride) {
+    const v = gray[i] * (-4) + gray[i-1] + gray[i+1] + gray[i-stride] + gray[i+stride];
+    lapSum += v * v; lapN++;
+  }
+  const texture = lapN > 0 ? lapSum / lapN : 1;
+  const edgeDensity = computeEdgeDensityProxy(gray, n);
+  return { mean, std, texture, edgeDensity };
+}
 
-  // ── Try to find a proper 4-corner quad inside the crop ─────────────────
-  const cropRect = new cv.Rect(x, y, w, h);
-  const cropGray = gray.roi(cropRect);
+function computeEdgeDensityProxy(gray, n) {
+  let cnt = 0;
+  const stride = Math.max(1, ~~(n/3000));
+  for (let i = stride; i < n-stride; i += stride) {
+    if (Math.abs(gray[i] - gray[i+stride]) > 15) cnt++;
+  }
+  return cnt / (n / stride);
+}
 
-  // Equalise the crop for better contour finding regardless of lighting
-  const eqCrop = new cv.Mat();
-  cv.equalizeHist(cropGray, eqCrop);
-  cropGray.delete();
-
-  const blurCrop = new cv.Mat();
-  cv.GaussianBlur(eqCrop, blurCrop, new cv.Size(3,3), 0);
-  eqCrop.delete();
-  const cropEdge = new cv.Mat();
-  cv.threshold(blurCrop, cropEdge, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
-  blurCrop.delete();
-
-  const cropCnts = new cv.MatVector(); const hier2 = new cv.Mat();
-  cv.findContours(cropEdge, cropCnts, hier2, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-  cropEdge.delete(); hier2.delete();
-
-  let srcPts = null; let cornerSrc = 'bounding rect';
-  if (cropCnts.size() > 0) {
-    let biggest = null, bigArea = 0;
-    for (let i = 0; i < cropCnts.size(); i++) {
-      const c = cropCnts.get(i);
-      const a = cv.contourArea(c);
-      if (a > bigArea) { bigArea = a; if (biggest) biggest.delete(); biggest = c; }
-      else c.delete();
-    }
-    if (biggest) {
-      const peri = cv.arcLength(biggest, true);
-      for (const eps of [0.02, 0.03, 0.05, 0.08, 0.12]) {
-        const approx = new cv.Mat();
-        cv.approxPolyDP(biggest, approx, eps * peri, true);
-        if (approx.rows === 4) {
-          const pts = [];
-          for (let i = 0; i < 4; i++)
-            pts.push({ px: approx.data32S[i*2] + x, py: approx.data32S[i*2+1] + y });
-          // Order: TL, TR, BR, BL by sum/diff
-          pts.sort((a,b)=>(a.px+a.py)-(b.px+b.py));
-          const tl = pts[0], br = pts[3];
-          const mid1 = pts[1], mid2 = pts[2];
-          const tr = mid1.px > mid2.px ? mid1 : mid2;
-          const bl = mid1.px > mid2.px ? mid2 : mid1;
-          srcPts = cv.matFromArray(4,1,cv.CV_32FC2,
-            [tl.px,tl.py, tr.px,tr.py, br.px,br.py, bl.px,bl.py]);
-          cornerSrc = 'approxPolyDP';
-          approx.delete(); break;
-        }
-        approx.delete();
+function applyCLAHE(gray, w, h, stats) {
+  // Simplified tile-based histogram equalization
+  const clip = Math.min(5, Math.max(2, 2 + 50/(stats.std + 1e-5)));
+  const tileW = ~~(w/8), tileH = ~~(h/8);
+  const out = new Uint8ClampedArray(w*h);
+  for (let ty = 0; ty < 8; ty++) {
+    for (let tx = 0; tx < 8; tx++) {
+      const x0 = tx*tileW, y0 = ty*tileH;
+      const x1 = Math.min(w, x0+tileW), y1 = Math.min(h, y0+tileH);
+      // build histogram for tile
+      const hist = new Float32Array(256);
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) hist[gray[y*w+x]]++;
+      const pxCount = (x1-x0)*(y1-y0);
+      const clipPx = (clip / 256) * pxCount;
+      // clip & redistribute
+      let excess = 0;
+      for (let b = 0; b < 256; b++) { if (hist[b] > clipPx) { excess += hist[b]-clipPx; hist[b] = clipPx; } }
+      const add = excess/256;
+      for (let b = 0; b < 256; b++) hist[b] += add;
+      // CDF
+      const cdf = new Float32Array(256);
+      cdf[0] = hist[0];
+      for (let b = 1; b < 256; b++) cdf[b] = cdf[b-1] + hist[b];
+      const cdfMin = cdf[0], cdfMax = cdf[255];
+      const lut = new Uint8Array(256);
+      for (let b = 0; b < 256; b++) lut[b] = ~~(((cdf[b]-cdfMin)/(cdfMax-cdfMin+1e-5))*255);
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+        out[y*w+x] = lut[gray[y*w+x]];
       }
-      biggest.delete();
     }
   }
-  cropCnts.delete();
-
-  // Fallback: use the padded bounding rect corners directly
-  if (!srcPts)
-    srcPts = cv.matFromArray(4,1,cv.CV_32FC2, [x,y, x+w,y, x+w,y+h, x,y+h]);
-
-  // ── Output size: fix height 80px, keep aspect ──────────────────────────
-  const outH = 80;
-  const outW = Math.max(160, Math.min(500, Math.round(outH * (w / Math.max(h, 1)))));
-  const dstPts = cv.matFromArray(4,1,cv.CV_32FC2,
-    [0,0, outW-1,0, outW-1,outH-1, 0,outH-1]);
-
-  const M = cv.getPerspectiveTransform(srcPts, dstPts);
-  const warped = new cv.Mat();
-  cv.warpPerspective(gray, warped, M, new cv.Size(outW, outH));
-  srcPts.delete(); dstPts.delete(); M.delete(); gray.delete();
-
-  // ── Adaptive binarization ──────────────────────────────────────────────
-  // Equalise the warped crop first so binarization is lighting-independent
-  const warpedEq = new cv.Mat();
-  cv.equalizeHist(warped, warpedEq);
-
-  const meanW = new cv.Mat(); const stdW = new cv.Mat();
-  cv.meanStdDev(warpedEq, meanW, stdW);
-  const localStd = stdW.data64F[0];
-  meanW.delete(); stdW.delete();
-
-  const binary = new cv.Mat();
-  let method = '';
-  if (localStd >= 25) {
-    cv.threshold(warpedEq, binary, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
-    method = 'Otsu';
-  } else {
-    // Low contrast — use adaptive with tighter block
-    const block = Math.max(11, ((Math.floor(outW / 12)) | 1));
-    cv.adaptiveThreshold(warpedEq, binary, 255,
-      cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, block, 3);
-    method = `Adaptive(b=${block})`;
-  }
-  warped.delete(); warpedEq.delete();
-
-  // Invert if background is dark
-  const meanB = new cv.Mat(); const stdB2 = new cv.Mat();
-  cv.meanStdDev(binary, meanB, stdB2);
-  if (meanB.data64F[0] < 127) cv.bitwise_not(binary, binary);
-  meanB.delete(); stdB2.delete();
-
-  // Remove salt-and-pepper noise
-  cv.medianBlur(binary, binary, 3);
-
-  return { binary, meta: { cornerSrc, outSize: `${outW}×${outH}`, localStd: localStd.toFixed(1), method } };
+  return out;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// RUN BUTTON
-// ═══════════════════════════════════════════════════════════════════════════
-document.getElementById('btn-run').addEventListener('click', () => {
-  if (!cvReady || !srcMat) return;
-  const btn = document.getElementById('btn-run');
-  btn.disabled = true;
-  document.getElementById('legend').style.display = 'none';
-  document.getElementById('legend-grid').innerHTML = '';
-
-  const delay = ms => new Promise(res => setTimeout(res, ms));
-
-  (async () => {
-    try {
-      // ── M1 ──
-      setStatus('running', 'M1 — CLAHE + bilateral filter + auto-Canny…');
-      setPipe(0); await delay(40);
-
-      const r1 = m1_edge_detection(srcMat);
-      const edgesRGBA = new cv.Mat();
-      cv.cvtColor(r1.edges, edgesRGBA, cv.COLOR_GRAY2RGBA);
-      showCanvas('m1', edgesRGBA,
-        `CLAHE clip=${r1.meta.clip} · bilateral d=${r1.meta.bilD} · Canny [${r1.meta.cannyLow},${r1.meta.cannyHigh}] · std=${r1.meta.std}`);
-      edgesRGBA.delete();
-
-      // ── M2 ──
-      setStatus('running', 'M2 — 3-strategy plate search (edges + threshold + Sobel)…');
-      setPipe(1); await delay(40);
-
-      const r2 = m2_plate_candidate(srcMat, r1.edges);
-      r1.edges.delete();
-      showCanvas('m2', r2.debug,
-        `Strategies A+B+C · score=${r2.meta.score} · rect [${r2.meta.rect}]`);
-      r2.debug.delete();
-
-      // ── M3 ──
-      setStatus('running', 'M3 — perspective warp + adaptive binarization…');
-      setPipe(2); await delay(40);
-
-      const r3 = m3_perspective_binarize(srcMat, r2.paddedRect);
-      const binRGBA = new cv.Mat();
-      cv.cvtColor(r3.binary, binRGBA, cv.COLOR_GRAY2RGBA);
-      showCanvas('m3', binRGBA,
-        `${r3.meta.cornerSrc} · warp ${r3.meta.outSize} · ${r3.meta.method} · localStd=${r3.meta.localStd}`);
-      binRGBA.delete(); r3.binary.delete();
-
-      setPipe(3);
-      setStatus('done', 'Pipeline complete ✓');
-      btn.disabled = false;
-
-      // Legend
-      document.getElementById('legend').style.display = 'block';
-      addLegendItem('📊', '#e8f1fb', `CLAHE clip = ${r1.meta.clip}`,
-        `Image std=${r1.meta.std} → ${parseFloat(r1.meta.clip) > 2 ? 'low contrast, clip raised' : 'normal contrast'}`);
-      addLegendItem('🔍', '#fef0e9', `Canny [${r1.meta.cannyLow}, ${r1.meta.cannyHigh}]`,
-        `Auto-derived from Otsu threshold of blurred grayscale`);
-      addLegendItem('🔎', '#e5f7ed', `Plate search: 3 strategies`,
-        `A=morph-close edges  B=Otsu threshold  C=Sobel-X — best score wins`);
-      addLegendItem('🏆', '#fef3cd', `Best score = ${r2.meta.score}`,
-        `Scored by: √(area/imgArea) × aspect_fitness × y-position bonus`);
-      addLegendItem('🖼', '#f1f5f9', `Warp → ${r3.meta.outSize}`,
-        `Height fixed 80px, width from plate aspect ratio`);
-      addLegendItem('⚡', parseFloat(r3.meta.localStd) >= 25 ? '#e5f7ed' : '#fef3cd',
-        `Binarize: ${r3.meta.method}`,
-        `localStd=${r3.meta.localStd} → ${parseFloat(r3.meta.localStd) >= 25 ? 'Otsu (good contrast)' : 'Adaptive Gaussian (low contrast)'}`);
-
-    } catch(err) {
-      setStatus('error', 'Error: ' + err.message);
-      btn.disabled = false;
-      console.error(err);
+function applyBilateral(gray, w, h, stats) {
+  // Fast approximate bilateral (Gaussian spatial + intensity)
+  const d = Math.max(5, Math.min(15, ~~(Math.min(w,h)/60)*2+1));
+  const sigma = Math.min(60, Math.max(10, 0.3*stats.std + 0.2*Math.sqrt(stats.texture)));
+  const r = ~~(d/2);
+  const out = new Uint8ClampedArray(w*h);
+  const sigmaI2 = sigma*sigma*2;
+  // simplified: spatial weight precomputed
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let wSum = 0, vSum = 0;
+      const center = gray[y*w+x];
+      for (let dy = -r; dy <= r; dy++) {
+        const ny = Math.min(h-1, Math.max(0, y+dy));
+        for (let dx = -r; dx <= r; dx++) {
+          const nx = Math.min(w-1, Math.max(0, x+dx));
+          const v = gray[ny*w+nx];
+          const diff = center - v;
+          const w_i = Math.exp(-(diff*diff)/sigmaI2 - (dx*dx+dy*dy)/(d*d));
+          wSum += w_i; vSum += w_i * v;
+        }
+      }
+      out[y*w+x] = ~~(vSum/wSum);
     }
-  })();
-});
+  }
+  return out;
+}
+
+function applyCanny(filtered, w, h, stats) {
+  // Gaussian blur
+  const blurred = gaussianBlur5(filtered, w, h);
+  const otsuVal = computeOtsu(blurred, w, h);
+  const edgeBias = Math.min(1.3, Math.max(0.8, stats.texture/1000));
+  const canny_low = Math.min(120, Math.max(10, ~~(0.4 * otsuVal * edgeBias)));
+  const canny_high = Math.min(250, Math.max(80, ~~(1.2 * otsuVal * edgeBias)));
+  const edges = cannyEdge(filtered, w, h, canny_low, canny_high);
+  return { edges, canny_low, canny_high };
+}
+
+function gaussianBlur5(src, w, h) {
+  const kernel = [1,4,6,4,1,4,16,24,16,4,6,24,36,24,6,4,16,24,16,4,1,4,6,4,1];
+  const kw = 256; // sum
+  const tmp = new Uint8ClampedArray(w*h);
+  const out = new Uint8ClampedArray(w*h);
+  for (let y = 2; y < h-2; y++) for (let x = 2; x < w-2; x++) {
+    let s = 0, ki = 0;
+    for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) s += kernel[ki++]*src[(y+dy)*w+(x+dx)];
+    out[y*w+x] = ~~(s/kw);
+  }
+  return out;
+}
+
+function computeOtsu(gray, w, h) {
+  const hist = new Int32Array(256);
+  const n = w*h;
+  for (let i=0;i<n;i++) hist[gray[i]]++;
+  let total = 0;
+  for (let i=0;i<256;i++) total += i*hist[i];
+  let sumB=0, wB=0, best=-1, t=0;
+  for (let i=0;i<256;i++) {
+    wB+=hist[i]; if(!wB) continue;
+    const wF=n-wB; if(!wF) break;
+    sumB+=i*hist[i];
+    const mB=sumB/wB, mF=(total-sumB)/wF;
+    const v=wB*wF*(mB-mF)*(mB-mF);
+    if(v>best){best=v;t=i;}
+  }
+  return t;
+}
+
+function cannyEdge(src, w, h, low, high) {
+  // Sobel + NMS + double threshold
+  const Gx = new Int16Array(w*h);
+  const Gy = new Int16Array(w*h);
+  const mag = new Uint16Array(w*h);
+  for (let y=1;y<h-1;y++) for (let x=1;x<w-1;x++) {
+    const i=y*w+x;
+    Gx[i]=(-src[(y-1)*w+(x-1)]+src[(y-1)*w+(x+1)]-2*src[y*w+(x-1)]+2*src[y*w+(x+1)]-src[(y+1)*w+(x-1)]+src[(y+1)*w+(x+1)]);
+    Gy[i]=(-src[(y-1)*w+(x-1)]-2*src[(y-1)*w+x]-src[(y-1)*w+(x+1)]+src[(y+1)*w+(x-1)]+2*src[(y+1)*w+x]+src[(y+1)*w+(x+1)]);
+    mag[i]=~~Math.min(255,Math.sqrt(Gx[i]*Gx[i]+Gy[i]*Gy[i])*0.5);
+  }
+  // NMS
+  const nms = new Uint8ClampedArray(w*h);
+  for (let y=1;y<h-1;y++) for (let x=1;x<w-1;x++) {
+    const i=y*w+x, m=mag[i];
+    if(!m){nms[i]=0;continue;}
+    const angle=(Math.atan2(Gy[i],Gx[i])*180/Math.PI+180)%180;
+    let n1,n2;
+    if(angle<22.5||angle>=157.5){n1=mag[i-1];n2=mag[i+1];}
+    else if(angle<67.5){n1=mag[(y+1)*w+(x-1)];n2=mag[(y-1)*w+(x+1)];}
+    else if(angle<112.5){n1=mag[(y-1)*w+x];n2=mag[(y+1)*w+x];}
+    else{n1=mag[(y-1)*w+(x-1)];n2=mag[(y+1)*w+(x+1)];}
+    nms[i]=(m>=n1&&m>=n2)?m:0;
+  }
+  // Double threshold
+  const edges = new Uint8ClampedArray(w*h);
+  for (let i=0;i<w*h;i++) edges[i]= nms[i]>=high ? 255 : nms[i]>=low ? 128 : 0;
+  // Hysteresis simplified
+  for (let y=1;y<h-1;y++) for (let x=1;x<w-1;x++) {
+    const i=y*w+x;
+    if(edges[i]===128) {
+      const hasStrong=edges[i-1]===255||edges[i+1]===255||edges[(y-1)*w+x]===255||edges[(y+1)*w+x]===255;
+      edges[i]=hasStrong?255:0;
+    }
+  }
+  return edges;
+}
+
+// ─── M2 ─────────────────────────────────────────────────────────────────
+function findPlateCandidates(edges, w, h, imgData) {
+  const imgArea = w*h;
+  const kw = Math.max(9, ~~(w*0.022)) | 1;
+
+  // Morphological close simulation using dilation
+  const morphH = morphClose(edges, w, h, kw, 1);
+  const morphS = morphClose(edges, w, h, kw, kw);
+  const dilated = dilate(morphH, w, h, 3, 3);
+
+  const sources = [
+    { name: 'horizontal', data: morphH },
+    { name: 'square', data: morphS },
+    { name: 'dilated', data: dilated }
+  ];
+
+  let bestScore = -1, bestRect = null, source = 'fallback';
+
+  for (const src of sources) {
+    const rects = findConnectedComponents(src.data, w, h);
+    for (const r of rects) {
+      if (r.w < 20 || r.h < 10) continue;
+      const score = scoreCandidate(r, edges, w, h, imgArea);
+      if (score > bestScore) { bestScore = score; bestRect = r; source = src.name; }
+    }
+  }
+
+  if (!bestRect) { bestRect = { x:0, y:0, w, h }; source = 'fallback'; bestScore = 0; }
+
+  // Padding
+  const padX = Math.max(4, ~~(bestRect.w*0.02));
+  const padY = Math.max(4, ~~(bestRect.h*0.05));
+  const rx = Math.max(0, bestRect.x-padX);
+  const ry = Math.max(0, bestRect.y-padY);
+  const rw = Math.min(w-rx, bestRect.w+padX*2);
+  const rh = Math.min(h-ry, bestRect.h+padY*2);
+
+  return { bestRect: { x:rx, y:ry, w:rw, h:rh }, m2score: bestScore, source };
+}
+
+function morphClose(edges, w, h, kw, kh) {
+  return erode(dilate(edges, w, h, kw, kh), w, h, kw, kh);
+}
+
+function dilate(src, w, h, kw, kh) {
+  const out = new Uint8ClampedArray(w*h);
+  const rx=~~(kw/2), ry=~~(kh/2);
+  for (let y=0;y<h;y++) for (let x=0;x<w;x++) {
+    let m=0;
+    for (let dy=-ry;dy<=ry;dy++) for (let dx=-rx;dx<=rx;dx++) {
+      const ny=Math.min(h-1,Math.max(0,y+dy)), nx=Math.min(w-1,Math.max(0,x+dx));
+      if(src[ny*w+nx]>m) m=src[ny*w+nx];
+    }
+    out[y*w+x]=m;
+  }
+  return out;
+}
+
+function erode(src, w, h, kw, kh) {
+  const out = new Uint8ClampedArray(w*h);
+  const rx=~~(kw/2), ry=~~(kh/2);
+  for (let y=0;y<h;y++) for (let x=0;x<w;x++) {
+    let m=255;
+    for (let dy=-ry;dy<=ry;dy++) for (let dx=-rx;dx<=rx;dx++) {
+      const ny=Math.min(h-1,Math.max(0,y+dy)), nx=Math.min(w-1,Math.max(0,x+dx));
+      if(src[ny*w+nx]<m) m=src[ny*w+nx];
+    }
+    out[y*w+x]=m;
+  }
+  return out;
+}
+
+function findConnectedComponents(mask, w, h) {
+  // Returns bounding rects of blobs (simplified run-length based)
+  const rects = [];
+  const visited = new Uint8Array(w*h);
+  for (let y=0;y<h;y++) for (let x=0;x<w;x++) {
+    if (mask[y*w+x]<128 || visited[y*w+x]) continue;
+    let minX=x,maxX=x,minY=y,maxY=y;
+    const queue = [[x,y]];
+    visited[y*w+x]=1;
+    while (queue.length) {
+      const [cx,cy]=queue.pop();
+      if(cx<minX)minX=cx;if(cx>maxX)maxX=cx;
+      if(cy<minY)minY=cy;if(cy>maxY)maxY=cy;
+      for (const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const nx=cx+dx, ny=cy+dy;
+        if(nx>=0&&nx<w&&ny>=0&&ny<h&&!visited[ny*w+nx]&&mask[ny*w+nx]>=128) {
+          visited[ny*w+nx]=1; queue.push([nx,ny]);
+        }
+      }
+    }
+    rects.push({ x:minX, y:minY, w:maxX-minX+1, h:maxY-minY+1 });
+  }
+  return rects;
+}
+
+function scoreCandidate(r, edges, w, h, imgArea) {
+  const { x, y, w: rw, h: rh } = r;
+  const area = rw*rh;
+  if (area<=0) return -1;
+  const aspect = rw/(rh+1e-5);
+  const aspectPenalty = Math.abs(aspect-4)/4;
+  const aspectScore = Math.max(0, 1-aspectPenalty);
+  // edge density inside rect
+  let edgeSum=0, total=0;
+  const step=Math.max(1,~~(Math.sqrt(area)/30));
+  for (let ey=y;ey<y+rh;ey+=step) for (let ex=x;ex<x+rw;ex+=step) {
+    if(ey<h&&ex<w) { edgeSum+=edges[ey*w+ex]; total++; }
+  }
+  const regionEdge=total>0?(edgeSum/total)/255:0;
+  const yCenter=(y+rh/2)/h;
+  const posBias=1+0.2*(yCenter>0.3?1:0);
+  const fillRatio=Math.min(1, area/(rw*rh+1e-5));
+  const areaScore=area/imgArea;
+  return (0.35*fillRatio + 0.20*regionEdge + 0.15*aspectScore + 0.05*areaScore) * posBias;
+}
+
+// ─── M3 ─────────────────────────────────────────────────────────────────
+function perspectiveBinarize(gray, rect, w, h, edges) {
+  const { x, y, w: rw, h: rh } = rect;
+  const cropGray = new Uint8ClampedArray(rw*rh);
+  for (let cy=0;cy<rh;cy++) for (let cx=0;cx<rw;cx++) {
+    const sy=Math.min(h-1,y+cy), sx=Math.min(w-1,x+cx);
+    cropGray[cy*rw+cx]=gray[sy*w+sx];
+  }
+
+  // Output size
+  const h_out=80;
+  const aspect=Math.min(6.5, Math.max(2.0, rw/(rh+1e-5)));
+  const w_out=Math.min(480, Math.max(160, ~~(h_out*aspect)));
+
+  // Use bbox warp (bilinear resample of crop)
+  const warped = bilinearResize(cropGray, rw, rh, w_out, h_out);
+
+  // Warp score
+  const warpScore = computeWarpScore(warped, w_out, h_out);
+  const localStd = computeStd(warped);
+
+  // Binarize
+  const otsuVal = computeOtsu(warped, w_out, h_out);
+  const otsuBin = threshold(warped, w_out, h_out, otsuVal);
+  const adaptBin = adaptiveThreshold(warped, w_out, h_out);
+
+  const otsuQ = binQuality(otsuBin);
+  const adaptQ = binQuality(adaptBin);
+  let binary = otsuQ >= adaptQ ? otsuBin : adaptBin;
+
+  // Polarity fix
+  let whiteCount=0;
+  for (let i=0;i<binary.length;i++) if(binary[i]===255) whiteCount++;
+  if(whiteCount/binary.length < 0.5) {
+    for (let i=0;i<binary.length;i++) binary[i]=binary[i]===255?0:255;
+  }
+
+  // Median blur
+  binary = medianBlur3(binary, w_out, h_out);
+
+  return { warped: { data: warped, w: w_out, h: h_out }, binary, warpScore, warpMode: 'bbox', localStd };
+}
+
+function bilinearResize(src, sw, sh, dw, dh) {
+  const out = new Uint8ClampedArray(dw*dh);
+  for (let y=0;y<dh;y++) for (let x=0;x<dw;x++) {
+    const sx=(x/(dw-1))*(sw-1), sy=(y/(dh-1))*(sh-1);
+    const x0=~~sx, x1=Math.min(sw-1,x0+1), y0=~~sy, y1=Math.min(sh-1,y0+1);
+    const fx=sx-x0, fy=sy-y0;
+    out[y*dw+x]=~~(
+      src[y0*sw+x0]*(1-fx)*(1-fy)+src[y0*sw+x1]*fx*(1-fy)+
+      src[y1*sw+x0]*(1-fx)*fy+src[y1*sw+x1]*fx*fy
+    );
+  }
+  return out;
+}
+
+function computeWarpScore(img, w, h) {
+  let lapVar=0,n=0;
+  const stride=Math.max(1,~~(w*h/2000));
+  for (let i=stride;i<w*h-stride;i+=stride) {
+    const v=img[i]*(-2)+img[i-stride]+img[i+stride];
+    lapVar+=v*v; n++;
+  }
+  const edgeVar=n>0?lapVar/n:0;
+  const std=computeStd(img);
+  const otsuV=computeOtsu(img,w,h);
+  const bin=threshold(img,w,h,otsuV);
+  let fg=0; for(let i=0;i<bin.length;i++) if(bin[i]===255) fg++;
+  const fgRatio=fg/bin.length;
+  const balance=1-Math.abs(fgRatio-0.5);
+  return 0.5*Math.min(edgeVar/500,1)+0.3*balance+0.2*Math.min(std/80,1);
+}
+
+function computeStd(arr) {
+  let s=0,s2=0,n=arr.length;
+  for(let i=0;i<n;i++){s+=arr[i];s2+=arr[i]*arr[i];}
+  return Math.sqrt(Math.max(0,s2/n-(s/n)*(s/n)));
+}
+
+function threshold(img, w, h, t) {
+  const out = new Uint8ClampedArray(w*h);
+  for(let i=0;i<img.length;i++) out[i]=img[i]>t?255:0;
+  return out;
+}
+
+function adaptiveThreshold(img, w, h) {
+  const block=Math.max(11,~~(w/15)|1);
+  const out = new Uint8ClampedArray(w*h);
+  const r=~~(block/2);
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++) {
+    let s=0,c=0;
+    for(let dy=-r;dy<=r;dy++) for(let dx=-r;dx<=r;dx++) {
+      const ny=Math.min(h-1,Math.max(0,y+dy)), nx=Math.min(w-1,Math.max(0,x+dx));
+      s+=img[ny*w+nx]; c++;
+    }
+    out[y*w+x]=img[y*w+x]>(s/c-4)?255:0;
+  }
+  return out;
+}
+
+function binQuality(b) {
+  let w=0,s=0,n=b.length;
+  for(let i=0;i<n;i++){if(b[i]===255)w++;s+=b[i];}
+  return (w/n)*(computeStd(b));
+}
+
+function medianBlur3(src, w, h) {
+  const out = new Uint8ClampedArray(w*h);
+  for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++) {
+    const nb=[src[(y-1)*w+(x-1)],src[(y-1)*w+x],src[(y-1)*w+(x+1)],
+               src[y*w+(x-1)],src[y*w+x],src[y*w+(x+1)],
+               src[(y+1)*w+(x-1)],src[(y+1)*w+x],src[(y+1)*w+(x+1)]].sort((a,b)=>a-b);
+    out[y*w+x]=nb[4];
+  }
+  return out;
+}
+
+// ─── RENDERING HELPERS ───────────────────────────────────────────────
+function grayToCanvas(gray, w, h) {
+  const c=document.createElement('canvas');
+  c.width=w; c.height=h;
+  const ctx=c.getContext('2d');
+  const id=ctx.createImageData(w,h);
+  for(let i=0;i<w*h;i++){const v=gray[i];id.data[i*4]=v;id.data[i*4+1]=v;id.data[i*4+2]=v;id.data[i*4+3]=255;}
+  ctx.putImageData(id,0,0);
+  return c;
+}
+
+function drawDetection(imgData, w, h, rect, src, score) {
+  const c=document.createElement('canvas');
+  c.width=w; c.height=h;
+  const ctx=c.getContext('2d');
+  ctx.putImageData(imgData, 0, 0);
+  ctx.strokeStyle='#6c6ff8';
+  ctx.lineWidth=Math.max(2, ~~(w/200));
+  ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.fillStyle='rgba(108,111,248,0.15)';
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.fillStyle='#6c6ff8';
+  ctx.font=`${Math.max(11,~~(w/80))}px JetBrains Mono, monospace`;
+  ctx.fillText(`${src} | ${score.toFixed(3)}`, rect.x+2, Math.max(rect.y-4, 14));
+  return c;
+}
+
+function cropRegion(imgData, w, h, rect) {
+  const { x, y, w:rw, h:rh } = rect;
+  const c=document.createElement('canvas');
+  c.width=rw; c.height=rh;
+  const ctx=c.getContext('2d');
+  const src=document.createElement('canvas');
+  src.width=w; src.height=h;
+  src.getContext('2d').putImageData(imgData,0,0);
+  ctx.drawImage(src, x, y, rw, rh, 0, 0, rw, rh);
+  return c;
+}
+
+function renderMeta(containerId, obj) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = Object.entries(obj).map(([k,v]) =>
+    `<div class="meta-card"><div class="meta-key">${k}</div><div class="meta-val">${v}</div></div>`
+  ).join('');
+}
+
+function renderCanvases(containerId, items) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = '';
+  for (const { canvas, label } of items) {
+    const box = document.createElement('div');
+    box.className = 'canvas-box';
+    // Scale canvas display
+    canvas.style.width='100%';
+    canvas.style.height='auto';
+    box.appendChild(canvas);
+    const lbl = document.createElement('div');
+    lbl.className = 'canvas-label';
+    lbl.textContent = label;
+    box.appendChild(lbl);
+    el.appendChild(box);
+  }
+}
+
+function checkWarn(containerId, condition, msg) {
+  const el = document.getElementById(containerId);
+  el.innerHTML = condition
+    ? `<div class="warn-chip">⚠ ${msg}</div>`
+    : '';
+}
 </script>
 </body>
 </html>
