@@ -19,11 +19,11 @@ Morphological Closing => done
 
    ↓
    
-Contour Detection
+Contour Detection => done
 
    ↓
    
-Plate Extraction
+Plate Extraction => done
 
    ↓
    
