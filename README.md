@@ -115,7 +115,7 @@ run_pipeline(IMAGE_PATH, visualize=True)
 
 ## Dataset
 
-[Google Drive — License Plate Images](https://drive.google.com/drive/folders/1XShMydIi2WidM-2WR4bbngt-wrv7DuqZ?usp=drive_link)
+[Google Drive — License Plate Images](https://drive.google.com/drive/folders/1uhrMK-RQ3gD_yJCDt-SmVbiLrLYuslfB?usp=drive_link)
 
 ---
 
