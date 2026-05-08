@@ -98,6 +98,28 @@ const ImgTile = ({ src, label }) => (
   ) : null
 );
 
+
+const CharCard = ({ src, index, size }) => (
+  <div style={{ 
+    textAlign: 'center', background: C.bg3, padding: '10px', 
+    borderRadius: '10px', border: `1px solid ${C.border}`,
+    flex: '0 0 auto'
+  }}>
+    <div style={{ 
+      background: '#fff', padding: '4px', borderRadius: '4px', 
+      display: 'flex', alignItems: 'center', justifyContent: 'center' 
+    }}>
+      <img 
+        src={`data:image/png;base64,${src}`} 
+        alt={`char-${index}`} 
+        style={{ width: '36px', height: '54px', objectFit: 'contain' }} 
+      />
+    </div>
+    <div style={{ fontFamily: f.mono, fontSize: 10, color: C.muted, marginTop: 8 }}>#{index}</div>
+    <div style={{ fontFamily: f.mono, fontSize: 8, color: C.muted2 }}>{size}</div>
+  </div>
+);
+
 const WarnChip = ({ msg }) => (
   <div style={{
     background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)',
@@ -107,7 +129,7 @@ const WarnChip = ({ msg }) => (
 );
 
 /* ─── STAGE ACCORDION ────────────────────────────────────────────── */
-const StagePanel = ({ accent, number, title, chip, meta, imgs, warns, defaultOpen }) => {
+const StagePanel = ({ accent, number, title, chip, meta, imgs, warns, defaultOpen,children }) => {
   const [open, setOpen] = useState(defaultOpen ?? false);
 
   return (
@@ -155,6 +177,8 @@ const StagePanel = ({ accent, number, title, chip, meta, imgs, warns, defaultOpe
               {imgs.map(([src, label]) => <ImgTile key={label} src={src} label={label} />)}
             </div>
           )}
+
+          {children}
           {warns?.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
               {warns.map(w => <WarnChip key={w} msg={w} />)}
@@ -172,11 +196,12 @@ const PipelineFlow = () => {
     { num: '01', color: C.m1, owner: 'M1', title: 'Edge Detection', steps: ['BGR → Grayscale', 'CLAHE contrast', 'Bilateral filter', 'Otsu-tuned Canny'] },
     { num: '02', color: C.m2, owner: 'M2', title: 'Plate Candidate', steps: ['Adaptive morph', 'Multi-source contours', 'Solidity scoring', 'Best rect select'] },
     { num: '03', color: C.m3, owner: 'M3', title: 'Binarize', steps: ['Perspective warp', 'Warp quality score', 'Otsu vs adaptive', 'Polarity correct'] },
+    { num: '04', color: C.warn, owner: 'M4', title: 'Segmentation', steps: ['Connected Components', 'Filter noise', 'Sort L→R', 'Resized 20×30'] },
   ];
 
   return (
     <div style={{
-      display: 'grid', gridTemplateColumns: '1fr 32px 1fr 32px 1fr',
+      display: 'grid', gridTemplateColumns: '1fr 32px 1fr 32px 1fr 32px 1fr',
       alignItems: 'stretch',
       background: C.bg2, border: `1px solid ${C.border}`,
       borderRadius: 16, overflow: 'hidden',
@@ -199,7 +224,7 @@ const PipelineFlow = () => {
               ))}
             </ul>
           </div>
-          {i < 2 && (
+          {i <3  && (
             <div key={`arr-${i}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted2, fontSize: 18 }}>→</div>
           )}
         </>
@@ -524,8 +549,29 @@ export default function App() {
                 ]}
                 warns={result.warnings?.filter(w => w.startsWith('M3'))}
               />
-            </div>
 
+              {result.m4 && (
+                <StagePanel
+                  accent={C.warn} 
+                  number="04" 
+                  title="M4 — Character Segmentation"
+                  chip={`${result.m4.num_characters} CHARS`}
+                  meta={result.m4.meta}
+                  warns={result.warnings?.filter(w => w.startsWith('M4'))}
+                >
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', marginTop: 10 }}>
+                    {result.m4.characters.map((char) => (
+                      <CharCard 
+                        key={char.index} 
+                        src={char.image} 
+                        index={char.index} 
+                        size={char.size} 
+                      />
+                    ))}
+                  </div>
+                </StagePanel>
+              )}
+              </div>
             <FinalBox data={result} />
           </div>
         )}
