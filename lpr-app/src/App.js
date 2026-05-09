@@ -129,7 +129,7 @@ const WarnChip = ({ msg }) => (
 );
 
 /* ─── STAGE ACCORDION ────────────────────────────────────────────── */
-const StagePanel = ({ accent, number, title, chip, meta, imgs, warns, defaultOpen,children }) => {
+const StagePanel = ({ accent, number, title, chip, meta, imgs, warns, defaultOpen, children }) => {
   const [open, setOpen] = useState(defaultOpen ?? false);
 
   return (
@@ -560,12 +560,12 @@ export default function App() {
                   warns={result.warnings?.filter(w => w.startsWith('M4'))}
                 >
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', marginTop: 10 }}>
-                    {result.m4.characters.map((char) => (
+                    {result.m4.characters.map((charBase64, idx) => (
                       <CharCard 
-                        key={char.index} 
-                        src={char.image} 
-                        index={char.index} 
-                        size={char.size} 
+                          key={idx}
+                          src={charBase64}  
+                          index={idx+1}     
+                          size={result.m4.meta?.target_size || "20×30"}
                       />
                     ))}
                   </div>
