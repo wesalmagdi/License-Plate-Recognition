@@ -1,10 +1,4 @@
 {
-  "rootDirectory": "lpr-app",
-  "framework": "create-react-app",
-  "buildCommand": "npm run build",
-  "outputDirectory": "build",
-  "routes": [
-    { "source": "/static/(.*)", "destination": "/static/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  "buildCommand": "cd lpr-app && npm install && npm run build",
+  "outputDirectory": "lpr-app/build"
 }
