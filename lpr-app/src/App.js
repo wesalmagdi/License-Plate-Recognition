@@ -1,8 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { runPipeline } from './pipeline';
 
-const API = 'http://localhost:5050';
-
-/* ─── DESIGN TOKENS ─────────────────────────────────────────────── */
 const C = {
   bg:      '#07080d',
   bg2:     '#0e0f18',
@@ -25,7 +23,6 @@ const f = {
   mono:    "'JetBrains Mono', monospace",
 };
 
-/* ─── GLOBAL STYLES injected once ───────────────────────────────── */
 const GlobalStyle = () => {
   useEffect(() => {
     const style = document.createElement('style');
@@ -56,10 +53,6 @@ const GlobalStyle = () => {
         from { opacity: 0; transform: translateY(24px); }
         to   { opacity: 1; transform: translateY(0); }
       }
-      @keyframes shimmer {
-        0%   { background-position: -400px 0; }
-        100% { background-position: 400px 0; }
-      }
       .slide-up { animation: slideUp 0.45s cubic-bezier(0.16,1,0.3,1) both; }
     `;
     document.head.appendChild(style);
@@ -68,7 +61,6 @@ const GlobalStyle = () => {
   return null;
 };
 
-/* ─── SMALL COMPONENTS ───────────────────────────────────────────── */
 const Tag = ({ children, color = C.muted }) => (
   <span style={{
     fontFamily: f.mono, fontSize: 10, letterSpacing: 2,
@@ -97,7 +89,6 @@ const ImgTile = ({ src, label }) => (
     </div>
   ) : null
 );
-
 
 const CharCard = ({ src, index, size }) => (
   <div style={{ 
@@ -128,17 +119,14 @@ const WarnChip = ({ msg }) => (
   }}>⚠ {msg}</div>
 );
 
-/* ─── STAGE ACCORDION ────────────────────────────────────────────── */
 const StagePanel = ({ accent, number, title, chip, meta, imgs, warns, defaultOpen, children }) => {
   const [open, setOpen] = useState(defaultOpen ?? false);
-
   return (
     <div style={{
       background: C.card, border: `1px solid ${C.border}`,
       borderRadius: 14, overflow: 'hidden',
       borderLeft: `3px solid ${accent}`,
     }}>
-      {/* header */}
       <div
         onClick={() => setOpen(o => !o)}
         style={{
@@ -158,13 +146,10 @@ const StagePanel = ({ accent, number, title, chip, meta, imgs, warns, defaultOpe
           fontFamily: f.mono, fontSize: 11, fontWeight: 700, color: accent,
           flexShrink: 0,
         }}>{number}</div>
-
         <div style={{ fontFamily: f.display, fontSize: 16, fontWeight: 600, flex: 1, color: C.text }}>{title}</div>
         {chip && <Tag color={accent}>{chip}</Tag>}
         <span style={{ color: C.muted2, fontSize: 12, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none', display: 'inline-block' }}>▾</span>
       </div>
-
-      {/* body */}
       {open && (
         <div style={{ padding: 22 }}>
           {meta && (
@@ -177,7 +162,6 @@ const StagePanel = ({ accent, number, title, chip, meta, imgs, warns, defaultOpe
               {imgs.map(([src, label]) => <ImgTile key={label} src={src} label={label} />)}
             </div>
           )}
-
           {children}
           {warns?.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
@@ -190,7 +174,6 @@ const StagePanel = ({ accent, number, title, chip, meta, imgs, warns, defaultOpe
   );
 };
 
-/* ─── PIPELINE FLOW DIAGRAM ──────────────────────────────────────── */
 const PipelineFlow = () => {
   const stages = [
     { num: '01', color: C.m1, owner: 'M1', title: 'Edge Detection', steps: ['BGR → Grayscale', 'CLAHE contrast', 'Bilateral filter', 'Otsu-tuned Canny'] },
@@ -198,7 +181,6 @@ const PipelineFlow = () => {
     { num: '03', color: C.m3, owner: 'M3', title: 'Binarize', steps: ['Perspective warp', 'Warp quality score', 'Otsu vs adaptive', 'Polarity correct'] },
     { num: '04', color: C.warn, owner: 'M4', title: 'Segmentation', steps: ['Connected Components', 'Filter noise', 'Sort L→R', 'Resized 20×30'] },
   ];
-
   return (
     <div style={{
       display: 'grid', gridTemplateColumns: '1fr 32px 1fr 32px 1fr 32px 1fr',
@@ -207,12 +189,10 @@ const PipelineFlow = () => {
       borderRadius: 16, overflow: 'hidden',
       position: 'relative', marginBottom: 40,
     }}>
-      {/* top gradient bar */}
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: `linear-gradient(90deg, ${C.m1}, ${C.m2}, ${C.m3})` }} />
-
       {stages.map((s, i) => (
-        <>
-          <div key={s.num} style={{ padding: '28px 22px', borderRight: i < 2 ? `1px solid ${C.border}` : 'none' }}>
+        <div key={s.num} style={{ display: 'contents' }}>
+          <div style={{ padding: '28px 22px', borderRight: i < 3 ? `1px solid ${C.border}` : 'none' }}>
             <div style={{ fontFamily: f.mono, fontSize: 9, letterSpacing: 2, color: s.color, textTransform: 'uppercase', marginBottom: 8 }}>{s.owner}</div>
             <div style={{ fontFamily: f.display, fontSize: 18, fontWeight: 700, color: C.text, marginBottom: 14, lineHeight: 1.2 }}>{s.title}</div>
             <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 5 }}>
@@ -224,47 +204,15 @@ const PipelineFlow = () => {
               ))}
             </ul>
           </div>
-          {i <3  && (
-            <div key={`arr-${i}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted2, fontSize: 18 }}>→</div>
+          {i < 3 && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted2, fontSize: 18 }}>→</div>
           )}
-        </>
+        </div>
       ))}
     </div>
   );
 };
 
-/* ─── SERVER STATUS BAR ──────────────────────────────────────────── */
-const ServerBar = ({ status, onRetry }) => {
-  const colors = { ok: C.m3, err: C.danger, checking: C.warn };
-  const labels = {
-    ok: '● Server online — calling your Python notebook functions',
-    err: '● Server offline — run the Flask Server cell in your notebook first',
-    checking: '● Checking server…',
-  };
-  const color = colors[status];
-
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 12,
-      background: C.bg2, border: `1px solid ${C.border}`,
-      borderRadius: 10, padding: '11px 18px', marginBottom: 32,
-      fontFamily: f.mono, fontSize: 12,
-    }}>
-      <span style={{
-        color,
-        animation: status === 'checking' ? 'pulse 1.2s infinite' : 'none',
-      }}>{labels[status]}</span>
-      <div style={{ flex: 1 }} />
-      <button onClick={onRetry} style={{
-        background: 'none', border: `1px solid ${C.border2}`,
-        borderRadius: 6, padding: '4px 12px', color: C.muted,
-        cursor: 'pointer', fontFamily: f.mono, fontSize: 11,
-      }}>↺ Retry</button>
-    </div>
-  );
-};
-
-/* ─── UPLOAD ZONE ────────────────────────────────────────────────── */
 const UploadZone = ({ file, onFile, onClear }) => {
   const inputRef = useRef();
   const [dragging, setDragging] = useState(false);
@@ -281,13 +229,12 @@ const UploadZone = ({ file, onFile, onClear }) => {
   }, [onFile]);
 
   const handleDrop = (e) => { e.preventDefault(); setDragging(false); load(e.dataTransfer.files[0]); };
-  const handleChange = (e) => load(e.target.files[0]);
-  const clear = () => { onClear(); setPreview(null); setDims(null); inputRef.current.value = ''; };
+  const handleChange = (e) => { if (e.target.files[0]) load(e.target.files[0]); };
+  const clear = () => { onClear(); setPreview(null); setDims(null); if (inputRef.current) inputRef.current.value = ''; };
 
   return (
     <div style={{ marginBottom: 20 }}>
       <input ref={inputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleChange} />
-
       {!preview ? (
         <div
           onDragOver={e => { e.preventDefault(); setDragging(true); }}
@@ -301,14 +248,10 @@ const UploadZone = ({ file, onFile, onClear }) => {
           }}
         >
           <div style={{ fontSize: 44, marginBottom: 16 }}>📷</div>
-          <div style={{ fontFamily: f.display, fontSize: 22, fontWeight: 700, color: C.text, marginBottom: 8 }}>
-            Drop your car image here
-          </div>
-          <div style={{ fontFamily: f.mono, fontSize: 12, color: C.muted, marginBottom: 24 }}>
-            Results come from your actual Python pipeline
-          </div>
+          <div style={{ fontFamily: f.display, fontSize: 22, fontWeight: 700, color: C.text, marginBottom: 8 }}>Drop your car image here</div>
+          <div style={{ fontFamily: f.mono, fontSize: 12, color: C.muted, marginBottom: 24 }}>Full pipeline runs in-browser — no server needed</div>
           <button
-            onClick={() => { inputRef.current.value = ''; inputRef.current.click(); }}
+            onClick={() => { if (inputRef.current) { inputRef.current.value = ''; inputRef.current.click(); } }}
             style={{
               background: C.bg3, border: `1px solid ${C.border2}`,
               borderRadius: 10, padding: '11px 28px',
@@ -317,9 +260,7 @@ const UploadZone = ({ file, onFile, onClear }) => {
             }}
             onMouseEnter={e => e.currentTarget.style.borderColor = C.m1}
             onMouseLeave={e => e.currentTarget.style.borderColor = C.border2}
-          >
-            Browse files
-          </button>
+          >Browse files</button>
         </div>
       ) : (
         <div style={{
@@ -329,9 +270,7 @@ const UploadZone = ({ file, onFile, onClear }) => {
           <img src={preview} alt="" style={{ width: 88, height: 62, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.border2}`, flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: f.display, fontSize: 14, fontWeight: 600, color: C.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file?.name}</div>
-            <div style={{ fontFamily: f.mono, fontSize: 11, color: C.muted, marginTop: 3 }}>
-              {dims} · {file ? (file.size / 1024).toFixed(1) : 0} KB
-            </div>
+            <div style={{ fontFamily: f.mono, fontSize: 11, color: C.muted, marginTop: 3 }}>{dims} · {file ? (file.size / 1024).toFixed(1) : 0} KB</div>
           </div>
           <button onClick={clear} style={{ background: 'none', border: `1px solid ${C.border2}`, borderRadius: 7, padding: '6px 14px', fontFamily: f.mono, fontSize: 11, color: C.muted, cursor: 'pointer' }}>✕</button>
         </div>
@@ -340,16 +279,13 @@ const UploadZone = ({ file, onFile, onClear }) => {
   );
 };
 
-/* ─── RUN BUTTON ─────────────────────────────────────────────────── */
 const RunButton = ({ disabled, loading }) => (
   <button
     type="submit"
     disabled={disabled || loading}
     style={{
       width: '100%', padding: '17px',
-      background: disabled || loading
-        ? C.bg3
-        : 'linear-gradient(135deg, #818cf8 0%, #6366f1 50%, #4f46e5 100%)',
+      background: disabled || loading ? C.bg3 : 'linear-gradient(135deg, #818cf8 0%, #6366f1 50%, #4f46e5 100%)',
       border: disabled || loading ? `1px solid ${C.border2}` : 'none',
       borderRadius: 12,
       fontFamily: f.display, fontSize: 18, fontWeight: 700,
@@ -367,7 +303,6 @@ const RunButton = ({ disabled, loading }) => (
   </button>
 );
 
-/* ─── CONFIDENCE BAR ─────────────────────────────────────────────── */
 const ConfBar = ({ value }) => {
   const pct = Math.min(100, Math.round(value * 200));
   const color = pct > 60 ? C.m3 : pct > 30 ? C.warn : C.danger;
@@ -382,7 +317,6 @@ const ConfBar = ({ value }) => {
   );
 };
 
-/* ─── FINAL RESULT BOX ───────────────────────────────────────────── */
 const FinalBox = ({ data }) => {
   const m3 = data.m3;
   return (
@@ -391,14 +325,8 @@ const FinalBox = ({ data }) => {
       border: `1px solid rgba(129,140,248,0.2)`,
       borderRadius: 16, padding: '32px', textAlign: 'center', marginTop: 16,
     }}>
-      <div style={{ fontFamily: f.mono, fontSize: 10, letterSpacing: 3, color: C.muted, textTransform: 'uppercase', marginBottom: 16 }}>
-        Binarized Plate — Ready for OCR
-      </div>
-      <img
-        src={`data:image/png;base64,${m3.binary}`}
-        alt="Binary plate"
-        style={{ maxWidth: '100%', borderRadius: 8, border: `1px solid ${C.border2}`, display: 'block', margin: '0 auto 20px' }}
-      />
+      <div style={{ fontFamily: f.mono, fontSize: 10, letterSpacing: 3, color: C.muted, textTransform: 'uppercase', marginBottom: 16 }}>Binarized Plate — Ready for OCR</div>
+      <img src={`data:image/png;base64,${m3.binary}`} alt="Binary plate" style={{ maxWidth: '100%', borderRadius: 8, border: `1px solid ${C.border2}`, display: 'block', margin: '0 auto 20px' }} />
       <div style={{ display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: 24 }}>
         {[['Warp Mode', m3.meta?.warp_mode], ['Warp Score', m3.meta?.warp_score], ['Binarization', m3.meta?.binarization ?? 'Otsu/Adaptive'], ['Size', m3.meta?.out_size]].map(([k, v]) => (
           <div key={k} style={{ fontFamily: f.mono, fontSize: 12, color: C.muted }}>
@@ -410,37 +338,19 @@ const FinalBox = ({ data }) => {
   );
 };
 
-/* ─── MAIN APP ───────────────────────────────────────────────────── */
 export default function App() {
-  const [serverStatus, setServerStatus] = useState('checking');
-  const [file, setFile]       = useState(null);
+  const [file, setFile] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult]   = useState(null);
-  const [error, setError]     = useState(null);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
 
-  /* server health */
-  const checkServer = useCallback(async () => {
-    setServerStatus('checking');
-    try {
-      const r = await fetch(`${API}/health`, { signal: AbortSignal.timeout(3000) });
-      const d = await r.json();
-      setServerStatus(d.ok ? 'ok' : 'err');
-    } catch { setServerStatus('err'); }
-  }, []);
-
-  useEffect(() => { checkServer(); const t = setInterval(checkServer, 20000); return () => clearInterval(t); }, [checkServer]);
-
-  /* run pipeline */
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!file || serverStatus !== 'ok') return;
+    if (!file) return;
     setLoading(true); setError(null); setResult(null);
     try {
-      const form = new FormData();
-      form.append('image', file);
-      const res = await fetch(`${API}/run`, { method: 'POST', body: form });
-      const data = await res.json();
-      if (!data.ok) throw new Error(data.trace ? data.error + '\n\n' + data.trace : data.error);
+      const data = await runPipeline(file);
+      if (!data.ok) throw new Error(data.error || 'Pipeline failed');
       setResult(data);
     } catch (err) {
       setError(err.message);
@@ -455,19 +365,11 @@ export default function App() {
     <>
       <GlobalStyle />
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 1060, margin: '0 auto', padding: '0 24px 100px' }}>
-
-        {/* ── HEADER ── */}
         <header style={{ padding: '52px 0 40px', borderBottom: `1px solid ${C.border}`, marginBottom: 40, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div>
-            <div style={{ fontFamily: f.mono, fontSize: 10, letterSpacing: 3, color: C.muted, textTransform: 'uppercase', marginBottom: 10 }}>
-              Digital Image Processing · Group Project
-            </div>
-            <h1 style={{ fontFamily: f.display, fontSize: 'clamp(36px,6vw,64px)', fontWeight: 900, color: C.text, lineHeight: 1, letterSpacing: -1 }}>
-              Plate Detector
-            </h1>
-            <div style={{ fontFamily: f.mono, fontSize: 12, color: C.muted, marginTop: 8 }}>
-              Adaptive License Plate Recognition · M1 → M2 → M3
-            </div>
+            <div style={{ fontFamily: f.mono, fontSize: 10, letterSpacing: 3, color: C.muted, textTransform: 'uppercase', marginBottom: 10 }}>Digital Image Processing · Group Project</div>
+            <h1 style={{ fontFamily: f.display, fontSize: 'clamp(36px,6vw,64px)', fontWeight: 900, color: C.text, lineHeight: 1, letterSpacing: -1 }}>Plate Detector</h1>
+            <div style={{ fontFamily: f.mono, fontSize: 12, color: C.muted, marginTop: 8 }}>Adaptive License Plate Recognition · M1 → M2 → M3</div>
           </div>
           <div style={{ display: 'flex', gap: 8, alignSelf: 'flex-start', marginTop: 8 }}>
             <Tag color={C.m1}>M1 Edges</Tag>
@@ -476,14 +378,9 @@ export default function App() {
           </div>
         </header>
 
-        {/* ── SERVER BAR ── */}
-        <ServerBar status={serverStatus} onRetry={checkServer} />
-
-        {/* ── PIPELINE DIAGRAM ── */}
         <div style={{ fontFamily: f.mono, fontSize: 10, letterSpacing: 3, color: C.muted2, textTransform: 'uppercase', marginBottom: 14 }}>Pipeline Architecture</div>
         <PipelineFlow />
 
-        {/* ── UPLOAD FORM ── */}
         <div style={{ fontFamily: f.mono, fontSize: 10, letterSpacing: 3, color: C.muted2, textTransform: 'uppercase', marginBottom: 14 }}>Input Image</div>
         <form onSubmit={handleSubmit}>
           <UploadZone file={file} onFile={setFile} onClear={handleClear} />
@@ -492,14 +389,11 @@ export default function App() {
               ⚠ {error}
             </div>
           )}
-          <RunButton disabled={!file || serverStatus !== 'ok'} loading={loading} />
+          <RunButton disabled={!file} loading={loading} />
         </form>
 
-        {/* ── RESULTS ── */}
         {result && (
           <div className="slide-up" style={{ marginTop: 48 }}>
-
-            {/* topbar */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14, marginBottom: 24 }}>
               <div style={{ fontFamily: f.mono, fontSize: 10, letterSpacing: 3, color: C.muted2, textTransform: 'uppercase' }}>Pipeline Output</div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
@@ -508,14 +402,12 @@ export default function App() {
               </div>
             </div>
 
-            {/* warnings */}
             {result.warnings?.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 20 }}>
                 {result.warnings.map(w => <WarnChip key={w} msg={w} />)}
               </div>
             )}
 
-            {/* stage panels */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <StagePanel
                 accent={C.m1} number="01" title="M1 — Edge Detection"
@@ -533,10 +425,7 @@ export default function App() {
                 accent={C.m2} number="02" title="M2 — Plate Candidate"
                 chip={`SCORE ${result.m2.meta?.score ?? ''}`}
                 meta={result.m2.meta}
-                imgs={[
-                  [result.m2.detection, 'Detection Overlay'],
-                  [result.m2.crop, 'Plate Crop'],
-                ]}
+                imgs={[[result.m2.detection, 'Detection Overlay'], [result.m2.crop, 'Plate Crop']]}
                 warns={result.warnings?.filter(w => w.startsWith('M2'))}
               />
               <StagePanel
@@ -549,29 +438,21 @@ export default function App() {
                 ]}
                 warns={result.warnings?.filter(w => w.startsWith('M3'))}
               />
-
               {result.m4 && (
                 <StagePanel
-                  accent={C.warn} 
-                  number="04" 
-                  title="M4 — Character Segmentation"
+                  accent={C.warn} number="04" title="M4 — Character Segmentation"
                   chip={`${result.m4.num_characters} CHARS`}
                   meta={result.m4.meta}
                   warns={result.warnings?.filter(w => w.startsWith('M4'))}
                 >
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center', marginTop: 10 }}>
                     {result.m4.characters.map((charBase64, idx) => (
-                      <CharCard 
-                          key={idx}
-                          src={charBase64}  
-                          index={idx+1}     
-                          size={result.m4.meta?.target_size || "20×30"}
-                      />
+                      <CharCard key={idx} src={charBase64} index={idx+1} size={result.m4.meta?.target_size || "20×30"} />
                     ))}
                   </div>
                 </StagePanel>
               )}
-              </div>
+            </div>
             <FinalBox data={result} />
           </div>
         )}
