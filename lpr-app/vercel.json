@@ -1,5 +1,4 @@
 {
-  "rootDirectory": "lpr-app",
   "framework": "create-react-app",
   "buildCommand": "npm run build",
   "outputDirectory": "build",
